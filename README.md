@@ -22,6 +22,16 @@ Press **Win + Space** from anywhere, type a command, hit Enter, and it runs in a
 
 ## Install
 
+**From a terminal** (PowerShell). This downloads the latest release, installs it and starts it:
+
+```powershell
+irm https://raw.githubusercontent.com/kazuna1/slate/main/install.ps1 | iex
+```
+
+Run the same command again later to update.
+
+**Or with the installer:**
+
 1. Click **Download for Windows** above and run `SlateSetup.exe`. No admin rights and no .NET install needed.
 2. Windows may show **"Windows protected your PC"** because the installer isn't code-signed.
    Click **More info → Run anyway**.
