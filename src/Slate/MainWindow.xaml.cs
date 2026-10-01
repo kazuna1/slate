@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -52,11 +55,27 @@ public partial class MainWindow : Window
     private readonly DropShadowEffect _glow = new() { ShadowDepth = 0 };
     private readonly GradientStop[] _shimmerStops = new GradientStop[3];
 
+    // Geometry in DIPs, kept from the last ApplyConfig for positioning.
+    private double _margin;
+    private double _barHeight;
+
+    // Completion: Tab/Shift+Tab cycle through matches for the last word; ghost text previews the first.
+    private readonly Completer _completer = new();
+    private IReadOnlyList<string> _cycle = Array.Empty<string>();
+    private int _cycleIndex = -1;
+    private int _tokenStart;
+    private bool _completing;
+    private string? _ghostMatch;
+    private bool _overlayQueued;
+
     /// <summary>Handles ":"-prefixed built-in commands.</summary>
     internal Action<string>? BuiltinHandler { get; set; }
 
     /// <summary>Shows a notification (title, message).</summary>
     internal Action<string, string>? Notify { get; set; }
+
+    /// <summary>Persists the config (used after dragging the bar).</summary>
+    internal Action<SlateConfig>? SaveConfig { get; set; }
 
     internal MainWindow(SlateConfig config, History history, string hotkeyDisplay)
     {
@@ -70,10 +89,14 @@ public partial class MainWindow : Window
         _guard.Tick += (_, _) => KeepOnDesktop();
 
         SourceInitialized += OnSourceInitialized;
+        Activated += (_, _) => QueueOverlay();
         Deactivated += OnDeactivated;
         PreviewMouseLeftButtonDown += (_, _) => { if (!_active) Summon(); };
+        Bar.MouseLeftButtonDown += OnBarMouseDown;
         Input.PreviewKeyDown += OnInputPreviewKeyDown;
-        Input.TextChanged += (_, _) => UpdatePlaceholder();
+        Input.TextChanged += OnInputTextChanged;
+        Input.SelectionChanged += (_, _) => QueueOverlay();
+        Input.SizeChanged += (_, _) => QueueOverlay();
         Closed += (_, _) => { if (_winEventHook != IntPtr.Zero) Native.UnhookWinEvent(_winEventHook); };
 
         ApplyConfig(config, hotkeyDisplay);
@@ -95,6 +118,7 @@ public partial class MainWindow : Window
         _taskbarCreatedMsg = Native.RegisterWindowMessage("TaskbarCreated");
         HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
 
+        Position();
         AttachToDesktop();
 
         _winEventProc = OnForegroundChanged;
@@ -160,6 +184,7 @@ public partial class MainWindow : Window
         _summonedAt = Environment.TickCount64;
         _focusAttempts = 0;
         _previousForeground = Native.GetForegroundWindow();
+        _completer.Refresh(_config);
 
         // Detach from the desktop first; activating a desktop-owned window would drag the desktop forward.
         Native.SetExStyle(_hwnd, 0, Native.WS_EX_NOACTIVATE);
@@ -278,9 +303,215 @@ public partial class MainWindow : Window
                 SetInput(_history.Next());
                 break;
             case Key.Tab:
-                e.Handled = true; // reserved for autocomplete (phase 2); don't let focus leave the box
+                e.Handled = true; // also keeps focus from leaving the box
+                CycleCompletion(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1);
+                break;
+            case Key.Right or Key.End when _ghostMatch != null && Input.CaretIndex == Input.Text.Length:
+                e.Handled = true;
+                AcceptGhost();
                 break;
         }
+    }
+
+    private void OnInputTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_completing) _cycleIndex = -1; // user typed: start a fresh completion next Tab
+        UpdatePlaceholder();
+        UpdateGhost();
+        QueueOverlay();
+    }
+
+    // ---------------------------------------------------------------------
+    // Completion
+    // ---------------------------------------------------------------------
+
+    /// <summary>The word being typed, if the caret is at the end and it's an argument (not the command itself).</summary>
+    private bool TryGetToken(out int start, out string token)
+    {
+        string text = Input.Text;
+        start = 0;
+        token = string.Empty;
+        if (Input.CaretIndex != text.Length) return false;
+
+        int lastSpace = text.LastIndexOf(' ');
+        if (lastSpace < 0) return false;
+
+        start = lastSpace + 1;
+        token = text[start..];
+        return true;
+    }
+
+    private void CycleCompletion(int direction)
+    {
+        if (_cycleIndex < 0)
+        {
+            if (!TryGetToken(out _tokenStart, out string token)) return;
+            _cycle = _completer.Match(token.Trim('\''));
+            if (_cycle.Count == 0) return;
+            _cycleIndex = direction > 0 ? 0 : _cycle.Count - 1;
+        }
+        else
+        {
+            _cycleIndex = (_cycleIndex + direction + _cycle.Count) % _cycle.Count;
+        }
+        ReplaceToken(_tokenStart, Completer.Quote(_cycle[_cycleIndex]));
+    }
+
+    private void AcceptGhost()
+    {
+        if (_ghostMatch == null || !TryGetToken(out int start, out _)) return;
+        ReplaceToken(start, _ghostMatch);
+        _cycleIndex = -1;
+        UpdateGhost();
+    }
+
+    private void ReplaceToken(int start, string value)
+    {
+        _completing = true;
+        try
+        {
+            Input.Text = Input.Text[..start] + value;
+            Input.CaretIndex = Input.Text.Length;
+        }
+        finally
+        {
+            _completing = false;
+        }
+    }
+
+    private void UpdateGhost()
+    {
+        _ghostMatch = null;
+        string token = string.Empty;
+        if (_cycleIndex < 0 && TryGetToken(out _, out token) && token.Length > 0)
+        {
+            string? match = _completer.Match(token).FirstOrDefault();
+            // Only names that need no quoting can be previewed as a plain suffix.
+            if (match != null && match.Length > token.Length
+                && match.StartsWith(token, StringComparison.OrdinalIgnoreCase)
+                && Completer.Quote(match) == match)
+            {
+                _ghostMatch = match;
+            }
+        }
+
+        Ghost.Text = _ghostMatch?[token.Length..] ?? string.Empty;
+        Ghost.Visibility = _ghostMatch != null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ---------------------------------------------------------------------
+    // Overlay: ghost text + smooth caret
+    // ---------------------------------------------------------------------
+
+    private bool SmoothCaretOn => Animate(x => x.SmoothCaret);
+
+    private void QueueOverlay()
+    {
+        if (_overlayQueued) return;
+        _overlayQueued = true;
+        // After layout, so the TextBox's character rects are current.
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            _overlayQueued = false;
+            UpdateOverlay();
+        });
+    }
+
+    private void UpdateOverlay()
+    {
+        if (Ghost.Visibility == Visibility.Visible)
+        {
+            var end = Input.GetRectFromCharacterIndex(Input.Text.Length);
+            if (!end.IsEmpty)
+            {
+                var p = Input.TranslatePoint(end.TopLeft, Overlay);
+                Canvas.SetLeft(Ghost, p.X);
+                Canvas.SetTop(Ghost, p.Y);
+            }
+        }
+
+        bool show = SmoothCaretOn && IsActive && Input.IsKeyboardFocused && Input.SelectionLength == 0;
+        if (!show)
+        {
+            Caret.BeginAnimation(OpacityProperty, null);
+            Caret.Opacity = 0;
+            return;
+        }
+
+        var r = Input.GetRectFromCharacterIndex(Input.CaretIndex);
+        if (r.IsEmpty) return;
+        var pos = Input.TranslatePoint(r.TopLeft, Overlay);
+
+        Caret.Height = r.Height;
+        Canvas.SetTop(Caret, pos.Y);
+        if (double.IsNaN(Canvas.GetLeft(Caret)))
+        {
+            Canvas.SetLeft(Caret, pos.X);
+        }
+        else
+        {
+            Caret.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(pos.X, TimeSpan.FromMilliseconds(90))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            });
+        }
+
+        // Solid while typing, then a soft fade in and out.
+        var blink = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(1100), RepeatBehavior = RepeatBehavior.Forever };
+        blink.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        blink.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(500))));
+        blink.KeyFrames.Add(new EasingDoubleKeyFrame(0.12, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(800)),
+            new SineEase { EasingMode = EasingMode.EaseInOut }));
+        blink.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1100)),
+            new SineEase { EasingMode = EasingMode.EaseInOut }));
+        Caret.BeginAnimation(OpacityProperty, blink);
+    }
+
+    // ---------------------------------------------------------------------
+    // Drag to reposition
+    // ---------------------------------------------------------------------
+
+    private void OnBarMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Clicks inside the text box are handled by the box; this is the frame, prompt and hint.
+        if (e.ClickCount != 1 || _hwnd == IntPtr.Zero) return;
+
+        Native.GetWindowRect(_hwnd, out var before);
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            return; // button already released
+        }
+        Native.GetWindowRect(_hwnd, out var after);
+
+        if (after.Left != before.Left || after.Top != before.Top) SavePosition(after);
+        if (_active) Keyboard.Focus(Input);
+    }
+
+    /// <summary>Converts the dragged window position back into monitor + anchor offsets and saves them.</summary>
+    private void SavePosition(Native.RECT r)
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var screen = System.Windows.Forms.Screen.FromHandle(_hwnd);
+        var wa = screen.WorkingArea;
+        double s = Native.ScaleAt((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2);
+        double winW = r.Right - r.Left;
+        double winH = r.Bottom - r.Top;
+
+        var a = _config.Appearance;
+        a.Monitor = screen.Primary ? 0 : Array.FindIndex(screens, x => x.DeviceName == screen.DeviceName) + 1;
+        a.OffsetX = Math.Round((r.Left - (wa.Left + (wa.Width - winW) / 2)) / s);
+        a.OffsetY = Math.Round(a.Anchor.Trim().ToLowerInvariant() switch
+        {
+            "bottom" => (wa.Bottom - r.Top) / s - _barHeight - _margin,
+            "center" => (r.Top - wa.Top - (wa.Height - winH) / 2) / s,
+            _ => (r.Top - wa.Top) / s + _margin,
+        });
+
+        SaveConfig?.Invoke(_config);
     }
 
     private void SetInput(string? text)
@@ -344,6 +575,8 @@ public partial class MainWindow : Window
         double barWidth = Math.Max(200, a.Width);
         double barHeight = Math.Max(28, a.Height);
 
+        _margin = margin;
+        _barHeight = barHeight;
         Root.Margin = new Thickness(margin);
         Width = barWidth + margin * 2;
         Height = barHeight + margin * 2;
@@ -378,8 +611,17 @@ public partial class MainWindow : Window
         Input.FontFamily = font;
         Input.FontSize = fontSize;
         Input.Foreground = textBrush;
-        Input.CaretBrush = new SolidColorBrush(promptColor);
         Input.SelectionBrush = new SolidColorBrush(glowColor);
+
+        // The smooth caret replaces the native one; the native one stays as the fallback.
+        Input.CaretBrush = SmoothCaretOn ? Brushes.Transparent : new SolidColorBrush(promptColor);
+        Caret.Fill = new SolidColorBrush(promptColor);
+
+        Ghost.FontFamily = font;
+        Ghost.FontSize = fontSize;
+        Ghost.Foreground = Theme.Solid(a.PlaceholderColor, Colors.Gray);
+        UpdateGhost();
+        QueueOverlay();
 
         Placeholder.Text = a.Placeholder;
         Placeholder.FontFamily = font;
@@ -394,7 +636,7 @@ public partial class MainWindow : Window
         HintText.Text = string.IsNullOrWhiteSpace(a.HintText) ? _hotkeyDisplay : a.HintText;
         HintText.Foreground = new SolidColorBrush(placeholderColor);
 
-        Position(margin, barHeight);
+        Position();
         StartIdleAnimations();
         AnimateState(_active, pop: false);
     }
@@ -416,18 +658,34 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    private void Position(double margin, double barHeight)
+    /// <summary>
+    /// Places the window on the configured monitor. Done in physical pixels because monitors
+    /// can have different scaling; offsets in the config are DIPs on the target monitor.
+    /// </summary>
+    private void Position()
     {
-        var a = _config.Appearance;
-        var wa = SystemParameters.WorkArea;
+        if (_hwnd == IntPtr.Zero) return; // called again from SourceInitialized
 
-        Left = wa.Left + (wa.Width - Width) / 2 + a.OffsetX;
-        Top = a.Anchor.Trim().ToLowerInvariant() switch
+        var a = _config.Appearance;
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var screen = a.Monitor >= 1 && a.Monitor <= screens.Length
+            ? screens[a.Monitor - 1]
+            : System.Windows.Forms.Screen.PrimaryScreen ?? screens[0];
+        var wa = screen.WorkingArea;
+        double s = Native.ScaleAt(wa.Left + wa.Width / 2, wa.Top + wa.Height / 2);
+
+        double winW = Width * s;
+        double winH = Height * s;
+        double x = wa.Left + (wa.Width - winW) / 2 + a.OffsetX * s;
+        double y = a.Anchor.Trim().ToLowerInvariant() switch
         {
-            "bottom" => wa.Bottom - a.OffsetY - barHeight - margin,
-            "center" => wa.Top + (wa.Height - Height) / 2 + a.OffsetY,
-            _ => wa.Top + a.OffsetY - margin,
+            "bottom" => wa.Bottom - (a.OffsetY + _barHeight + _margin) * s,
+            "center" => wa.Top + (wa.Height - winH) / 2 + a.OffsetY * s,
+            _ => wa.Top + (a.OffsetY - _margin) * s,
         };
+
+        Native.SetWindowPos(_hwnd, IntPtr.Zero, (int)Math.Round(x), (int)Math.Round(y), 0, 0,
+            Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
     }
 
     // ---------------------------------------------------------------------

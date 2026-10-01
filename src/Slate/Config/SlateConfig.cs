@@ -17,6 +17,12 @@ public sealed class SlateConfig
 
     public int HistorySize { get; set; } = 500;
 
+    /// <summary>Tab-completion source: folders zoxide knows about (ranked by how often you use them).</summary>
+    public bool UseZoxide { get; set; } = true;
+
+    /// <summary>Extra completion source: every subfolder of these directories.</summary>
+    public List<string> ProjectRoots { get; set; } = [];
+
     public AppearanceConfig Appearance { get; set; } = new();
 
     public AnimationConfig Animations { get; set; } = new();
@@ -27,7 +33,10 @@ public sealed class AppearanceConfig
     public double Width { get; set; } = 760;
     public double Height { get; set; } = 64;
 
-    /// <summary>"top", "center" or "bottom" of the primary screen's work area.</summary>
+    /// <summary>0 = primary monitor, 1..n = a specific monitor.</summary>
+    public int Monitor { get; set; } = 0;
+
+    /// <summary>"top", "center" or "bottom" of the monitor's work area. Dragging the bar updates the offsets.</summary>
     public string Anchor { get; set; } = "top";
     public double OffsetX { get; set; } = 0;
     public double OffsetY { get; set; } = 48;
@@ -79,4 +88,7 @@ public sealed class AnimationConfig
     public double BorderShimmerSeconds { get; set; } = 6;
 
     public bool RunFlash { get; set; } = true;
+
+    /// <summary>Custom caret that glides between positions and fades instead of hard-blinking.</summary>
+    public bool SmoothCaret { get; set; } = true;
 }

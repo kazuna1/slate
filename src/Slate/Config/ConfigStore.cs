@@ -68,6 +68,18 @@ internal sealed class ConfigStore : IDisposable
         }
     }
 
+    public void Save(SlateConfig config)
+    {
+        try
+        {
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(config, Options));
+        }
+        catch (IOException ex)
+        {
+            Log.Error("Saving config", ex);
+        }
+    }
+
     public void Dispose()
     {
         _watcher.Dispose();

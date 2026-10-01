@@ -46,6 +46,7 @@ public partial class App : Application
         {
             BuiltinHandler = HandleBuiltin,
             Notify = Notify,
+            SaveConfig = c => _store.Save(c),
         };
         _bar.Show();
 

@@ -195,7 +195,42 @@ internal static class Native
     [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
     private static extern int SetWindowLong32(IntPtr hWnd, int nIndex, int dwNewLong);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    public const uint MONITOR_DEFAULTTONEAREST = 2;
+    public const uint SWP_NOZORDER = 0x0004;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
     // ---- helpers ----------------------------------------------------------
+
+    /// <summary>Scale factor (1.0 = 96 DPI) of the monitor containing the given physical point.</summary>
+    public static double ScaleAt(int x, int y)
+    {
+        IntPtr mon = MonitorFromPoint(new POINT { X = x, Y = y }, MONITOR_DEFAULTTONEAREST);
+        return GetDpiForMonitor(mon, 0 /* MDT_EFFECTIVE_DPI */, out uint dpi, out _) == 0 && dpi > 0 ? dpi / 96.0 : 1.0;
+    }
 
     public static IntPtr GetWindowLongPtr(IntPtr hWnd, int index) =>
         IntPtr.Size == 8 ? GetWindowLongPtr64(hWnd, index) : new IntPtr(GetWindowLong32(hWnd, index));
