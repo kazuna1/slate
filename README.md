@@ -5,6 +5,14 @@ Press **Win + Space** from anywhere, type a command, hit Enter, and it runs in a
 
 ![Slate](docs/slate.png)
 
+<p align="center">
+  <a href="https://github.com/__OWNER__/slate/releases/latest/download/SlateSetup.exe">
+    <img src="https://img.shields.io/badge/Download_for_Windows-SlateSetup.exe-2ea44f?style=for-the-badge&logo=windows&logoColor=white" alt="Download Slate for Windows">
+  </a>
+  <br>
+  <sub>Windows 10/11 · x64 · free, MIT licensed · <a href="https://github.com/__OWNER__/slate/releases/latest">all downloads</a></sub>
+</p>
+
 - Lives on the desktop and **survives Win + D**.
 - **Win + Space** brings it to the front with the keyboard focus in the bar. If focus can't be taken, the bar backs off instead of letting your keys go somewhere else.
 - Runs **anything** PowerShell runs, with your profile loaded, so your own shortcuts work (`cc animu`).
@@ -14,12 +22,18 @@ Press **Win + Space** from anywhere, type a command, hit Enter, and it runs in a
 
 ## Install
 
-1. Download `Slate-<version>-win-x64.zip` from Releases and unzip `Slate.exe` anywhere (e.g. `%LOCALAPPDATA%\Programs\Slate`).
-   No .NET install needed.
-2. Run it. A `❯` icon appears in the tray.
-3. Right-click the tray icon → **Run at startup**, or type `:autostart on` in the bar.
+1. Click **Download for Windows** above and run `SlateSetup.exe`. No admin rights and no .NET install needed.
+2. Windows may show **"Windows protected your PC"** because the installer isn't code-signed.
+   Click **More info → Run anyway**.
+3. Leave **Start Slate when Windows starts** ticked. When it finishes, a `❯` icon appears in the tray.
+4. Press **Win + Space**.
 
-Requires Windows 10/11. Windows Terminal is used if installed; otherwise a classic console window opens.
+To uninstall, go to **Settings → Apps → Installed apps → Slate → Uninstall**. It asks whether to keep your settings.
+
+Portable option: download `Slate-<version>-win-x64.zip` from [Releases](../../releases/latest), unzip it, and run `Slate.exe`.
+
+Windows Terminal is used if installed; otherwise a classic console window opens.
+[zoxide](https://github.com/ajeetdsouza/zoxide) is optional and only used for Tab completion.
 
 ## Using it
 
@@ -122,8 +136,16 @@ Requires the .NET 8 SDK.
 
 ```powershell
 dotnet build src\Slate\Slate.csproj                                       # debug build
-powershell -ExecutionPolicy Bypass -File tools\publish.ps1                # single-file release exe + zip in publish\
+powershell -ExecutionPolicy Bypass -File tools\publish.ps1                # release exe, zip and SlateSetup.exe in publish\
 powershell -ExecutionPolicy Bypass -File tools\make-icon.ps1              # regenerate the icon
 ```
 
+The installer needs [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`).
+Releases are built by GitHub Actions: pushing a tag like `v1.0.1` builds everything on a clean runner and publishes the release.
+Bump `<Version>` in `src/Slate/Slate.csproj` to match the tag.
+
 Stack: C# / WPF on .NET 8, with a WinForms tray icon. The project started as "Glint".
+
+## License
+
+[MIT](LICENSE)

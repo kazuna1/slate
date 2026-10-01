@@ -27,10 +27,16 @@ internal sealed class ConfigStore : IDisposable
     /// <summary>Raised on a thread-pool thread, debounced.</summary>
     public event Action? Changed;
 
+    /// <summary>True on the very first run, when config.json had to be created.</summary>
+    public bool CreatedNew { get; }
+
     public ConfigStore()
     {
         if (!File.Exists(FilePath))
+        {
             File.WriteAllText(FilePath, JsonSerializer.Serialize(new SlateConfig(), Options));
+            CreatedNew = true;
+        }
 
         _debounce = new Timer(_ => Changed?.Invoke());
         _watcher = new FileSystemWatcher(Paths.AppDir, Path.GetFileName(FilePath))

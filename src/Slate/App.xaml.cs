@@ -71,6 +71,8 @@ public partial class App : Application
 
         _store.Changed += () => Dispatcher.BeginInvoke(Reload);
 
+        if (_store.CreatedNew)
+            Notify("Slate is running", $"Press {hotkey.Display} anywhere to summon the bar. Right-click the tray icon for options.");
         if (configError != null) Notify("Slate: config.json has an error", configError + "\nUsing defaults.");
         if (hotkeyError != null) Notify("Slate: bad hotkey", hotkeyError);
     }
