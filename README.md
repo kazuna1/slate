@@ -30,7 +30,7 @@ Press **Win + Space** from anywhere, type a command, hit Enter, and it runs in a
 
 To uninstall, go to **Settings → Apps → Installed apps → Slate → Uninstall**. It asks whether to keep your settings.
 
-Portable option: download `Slate-<version>-win-x64.zip` from [Releases](../../releases/latest), unzip it, and run `Slate.exe`.
+Portable option: download `Slate-<version>-win-x64.zip` from [Releases](https://github.com/kazuna1/slate/releases/latest), unzip it, and run `Slate.exe`.
 
 Windows Terminal is used if installed; otherwise a classic console window opens.
 [zoxide](https://github.com/ajeetdsouza/zoxide) is optional and only used for Tab completion.
