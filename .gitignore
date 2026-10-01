@@ -3,7 +3,3 @@ obj/
 publish/
 .vs/
 *.user
-
-# Personal notes, kept local
-slate-IDEA.md
-PLAN.md
