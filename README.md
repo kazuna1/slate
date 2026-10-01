@@ -18,6 +18,7 @@ Press **Win + Space** anywhere, type a command, hit Enter. It runs in a terminal
 - **Runs anything.** Any PowerShell command, with your profile loaded, so your own shortcuts work.
 - **Smart.** Tab completes folder names (via [zoxide](https://github.com/ajeetdsouza/zoxide)), and ↑ / ↓ brings back your history.
 - **Yours.** Colors, size, glow, font, hotkey and animations are all configurable, and changes apply live.
+- **Up to date.** Tells you when a new version is out and updates itself in one click.
 
 ## Install
 

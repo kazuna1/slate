@@ -10,6 +10,7 @@ Comments (`//`) and trailing commas are allowed.
   "terminal": "wt",               // wt (new window) | wt-tab (tab in last window) | console
   "workingDirectory": "%USERPROFILE%",
   "historySize": 500,
+  "checkForUpdates": true,        // check GitHub at startup and daily, offer one-click updates
   "useZoxide": true,              // Tab completion from zoxide's ranked folders
   "projectRoots": [],             // also complete subfolders of these, e.g. ["D:\\code"]
 
@@ -67,10 +68,20 @@ Logs go to `%APPDATA%\Slate\slate.log`.
 |---|---|
 | `:config` | Open `config.json` |
 | `:reload` | Reload the config |
+| `:update` | Check for a new version and install it |
+| `:version` | Show the installed version |
 | `:autostart on` / `off` | Start with Windows |
 | `:history clear` | Forget command history |
 | `:help` | List these |
 | `:exit` | Quit Slate |
+
+## Updates
+
+Slate checks GitHub for a newer release 30 seconds after it starts, then once a day.
+When one exists, a notification offers it, and the tray menu shows **Install update x.y.z**.
+Clicking it downloads `SlateSetup.exe`, verifies its SHA-256 checksum against the one GitHub publishes,
+installs it silently and restarts Slate. Settings and history are kept.
+Portable (zip) copies open the download page instead.
 
 ## How it works
 

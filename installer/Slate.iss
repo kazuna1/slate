@@ -47,6 +47,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\Slate.exe"; Description: "Launch Slate now"; Flags: nowait postinstall skipifsilent
+; In-app updates run silently with /RELAUNCH=1, so Slate comes back by itself.
+Filename: "{app}\Slate.exe"; Flags: nowait; Check: ShouldRelaunch
 
 [Code]
 // Slate runs in the tray, so close it before replacing or removing the exe.
@@ -55,6 +57,11 @@ var
   ResultCode: Integer;
 begin
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM Slate.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+function ShouldRelaunch(): Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -8,8 +8,11 @@ internal sealed class TrayIcon : IDisposable
 {
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _autostart;
+    private readonly ToolStripMenuItem _update;
+    private Action? _balloonClick;
 
-    public TrayIcon(Action summon, Action openConfig, Action reload, Action exit)
+    /// <param name="update">Checks for an update, or installs it if one was already found.</param>
+    public TrayIcon(Action summon, Action openConfig, Action reload, Action update, Action exit)
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Summon bar", null, (_, _) => summon());
@@ -23,6 +26,11 @@ internal sealed class TrayIcon : IDisposable
             RefreshAutostart();
         };
         menu.Items.Add(_autostart);
+
+        _update = new ToolStripMenuItem("Check for updates");
+        _update.Click += (_, _) => update();
+        menu.Items.Add(_update);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => exit());
         menu.Opening += (_, _) => RefreshAutostart();
@@ -30,7 +38,7 @@ internal sealed class TrayIcon : IDisposable
         _icon = new NotifyIcon
         {
             Icon = CreateIcon(),
-            Text = $"Slate {typeof(TrayIcon).Assembly.GetName().Version?.ToString(3)}",
+            Text = $"Slate {Updater.CurrentVersion.ToString(3)}",
             ContextMenuStrip = menu,
             Visible = true,
         };
@@ -38,12 +46,26 @@ internal sealed class TrayIcon : IDisposable
         {
             if (e.Button == MouseButtons.Left) summon();
         };
+        _icon.BalloonTipClicked += (_, _) =>
+        {
+            var action = _balloonClick;
+            _balloonClick = null;
+            action?.Invoke();
+        };
+        _icon.BalloonTipClosed += (_, _) => _balloonClick = null;
     }
 
-    public void Notify(string title, string text) =>
-        _icon.ShowBalloonTip(4000, title, text, ToolTipIcon.Info);
+    /// <summary>Shows a notification; <paramref name="onClick"/> runs if the user clicks it.</summary>
+    public void Notify(string title, string text, Action? onClick = null)
+    {
+        _balloonClick = onClick;
+        _icon.ShowBalloonTip(5000, title, text, ToolTipIcon.Info);
+    }
 
     public void RefreshAutostart() => _autostart.Checked = Autostart.IsEnabled;
+
+    public void SetUpdateAvailable(Version? version) =>
+        _update.Text = version == null ? "Check for updates" : $"Install update {version.ToString(3)}";
 
     /// <summary>The icon embedded from Assets/slate.ico, at the tray's size.</summary>
     private static Icon CreateIcon()

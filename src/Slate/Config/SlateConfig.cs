@@ -17,6 +17,9 @@ public sealed class SlateConfig
 
     public int HistorySize { get; set; } = 500;
 
+    /// <summary>Check GitHub for a newer version at startup and once a day.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     /// <summary>Tab-completion source: folders zoxide knows about (ranked by how often you use them).</summary>
     public bool UseZoxide { get; set; } = true;
 

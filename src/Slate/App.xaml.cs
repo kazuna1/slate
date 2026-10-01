@@ -1,8 +1,14 @@
-﻿using System;
+using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Slate.Config;
 using Slate.Interop;
 
@@ -17,6 +23,11 @@ public partial class App : Application
     private MainWindow? _bar;
     private HotkeyHook? _hook;
     private TrayIcon? _tray;
+
+    private DispatcherTimer? _updateTimer;
+    private UpdateInfo? _update;
+    private Version? _notifiedUpdate;
+    private bool _updating;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -56,7 +67,7 @@ public partial class App : Application
         };
         _bar.Show();
 
-        _tray = new TrayIcon(() => _bar.Summon(), OpenConfig, Reload, Quit);
+        _tray = new TrayIcon(() => _bar.Summon(), OpenConfig, Reload, () => _ = UpdateNowAsync(), Quit);
 
         try
         {
@@ -75,6 +86,82 @@ public partial class App : Application
             Notify("Slate is running", $"Press {hotkey.Display} anywhere to summon the bar. Right-click the tray icon for options.");
         if (configError != null) Notify("Slate: config.json has an error", configError + "\nUsing defaults.");
         if (hotkeyError != null) Notify("Slate: bad hotkey", hotkeyError);
+
+        // First check shortly after startup (not during login rush), then daily.
+        _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _updateTimer.Tick += (_, _) =>
+        {
+            _updateTimer.Interval = TimeSpan.FromHours(24);
+            if (_config.CheckForUpdates) _ = CheckForUpdateAsync(manual: false);
+        };
+        _updateTimer.Start();
+    }
+
+    // ---------------------------------------------------------------------
+    // Updates
+    // ---------------------------------------------------------------------
+
+    private async Task CheckForUpdateAsync(bool manual)
+    {
+        try
+        {
+            _update = await Updater.CheckAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException)
+        {
+            Log.Error("Checking for updates", ex);
+            if (manual) Notify("Slate", "Couldn't check for updates. Are you online?");
+            return;
+        }
+
+        _tray?.SetUpdateAvailable(_update?.Version);
+
+        if (_update == null)
+        {
+            if (manual) Notify("Slate is up to date", $"You have the latest version ({Updater.CurrentVersion.ToString(3)}).");
+            return;
+        }
+
+        // Nag once per version, not every day.
+        if (manual || _notifiedUpdate != _update.Version)
+        {
+            _notifiedUpdate = _update.Version;
+            Notify($"Slate {_update.Version.ToString(3)} is available",
+                "Click to update now. Your settings are kept.",
+                () => _ = UpdateNowAsync());
+        }
+    }
+
+    /// <summary>Installs the known update, checking first if none is known yet.</summary>
+    private async Task UpdateNowAsync()
+    {
+        if (_updating) return;
+        if (_update == null)
+        {
+            await CheckForUpdateAsync(manual: true);
+            return; // the notification it shows offers the install
+        }
+
+        if (!Updater.IsInstalled)
+        {
+            // Portable copy: no installer to update in place, so send them to the download.
+            Process.Start(new ProcessStartInfo(_update.PageUrl) { UseShellExecute = true })?.Dispose();
+            return;
+        }
+
+        _updating = true;
+        Notify("Updating Slate", $"Downloading {_update.Version.ToString(3)}... Slate will restart by itself.");
+        try
+        {
+            await Updater.DownloadAndRunAsync(_update);
+            Quit(); // the installer replaces the exe and relaunches it
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or InvalidDataException or Win32Exception)
+        {
+            Log.Error("Installing update", ex);
+            Notify("Slate update failed", ex.Message);
+            _updating = false;
+        }
     }
 
     /// <summary>Writes a PNG of the bar using the current config, then exits. Doesn't touch a running instance.</summary>
@@ -157,8 +244,14 @@ public partial class App : Application
                 _tray?.RefreshAutostart();
                 Notify("Slate", arg == "on" ? "Slate will start with Windows." : "Slate won't start with Windows.");
                 return;
+            case "update":
+                _ = UpdateNowAsync();
+                return;
+            case "version":
+                Notify("Slate", $"Version {Updater.CurrentVersion.ToString(3)}");
+                return;
             case "help":
-                Notify("Slate commands", ":config  :reload  :autostart on|off  :history clear  :exit");
+                Notify("Slate commands", ":config  :reload  :update  :version  :autostart on|off  :history clear  :exit");
                 return;
             default:
                 Notify("Slate", $"Unknown command \"{text}\". Try :help");
@@ -181,8 +274,11 @@ public partial class App : Application
 
     private void Notify(string title, string message) => _tray?.Notify(title, message);
 
+    private void Notify(string title, string message, Action onClick) => _tray?.Notify(title, message, onClick);
+
     private void Quit()
     {
+        _updateTimer?.Stop();
         _hook?.Dispose();
         _tray?.Dispose();
         _store?.Dispose();
