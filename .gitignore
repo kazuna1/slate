@@ -6,3 +6,5 @@ publish/
 node_modules/
 *.tgz
 .npmrc
+mac/.build/
+.DS_Store

@@ -75,6 +75,26 @@ Logs go to `%APPDATA%\Slate\slate.log`.
 | `:help` | List these |
 | `:exit` | Quit Slate |
 
+## macOS
+
+The config lives in `~/Library/Application Support/Slate/config.json` and has the same keys, with these differences:
+
+| Key | macOS default | Notes |
+|---|---|---|
+| `hotkey` | `"Option+Space"` | Modifiers: `Cmd`, `Option`, `Ctrl`, `Shift`. Cmd + Space belongs to Spotlight unless you turn Spotlight's shortcut off in System Settings → Keyboard → Keyboard Shortcuts. Ctrl + Space is the input-source switcher. |
+| `shell` | `"auto"` | Your login shell (`$SHELL`). Also `zsh`, `bash`, `fish` or a full path. Your `.zshrc` is loaded. |
+| `terminal` | `"Terminal"` | Any app that opens `.command` files, e.g. `"iTerm"`. Falls back to Terminal. |
+| `workingDirectory` | `"~"` | |
+| `projectRoots` | `["~/projects", "~/Developer", "~/code"]` | Missing folders are skipped. |
+| `appearance.fontFamily` | `"SF Mono, Menlo"` | |
+| `appearance.monitor` | `0` | 0 = the display with the menu bar. |
+| `animations.smoothCaret` | – | Windows only. |
+
+The **❯** in the menu bar has Show Slate, Open Config, Reload Config, Launch at Login, Check for Updates and Quit.
+If macOS doesn't allow Slate's notifications, messages (like "update available") appear briefly in the bar itself; click it to act on them.
+
+The bar never needs the Accessibility permission. The hotkey uses the system's hotkey API, and commands run through `.command` scripts that your terminal opens.
+
 ## Updates
 
 Slate checks GitHub for a newer release 30 seconds after it starts, then once a day.
@@ -82,6 +102,7 @@ When one exists, a notification offers it, and the tray menu shows **Install upd
 Clicking it downloads `SlateSetup.exe`, verifies its SHA-256 checksum against the one GitHub publishes,
 installs it silently and restarts Slate. Settings and history are kept.
 Portable (zip) copies open the download page instead.
+On macOS the same check downloads `Slate-macOS.zip`, verifies it, swaps the app in place and relaunches it.
 
 ## How it works
 
@@ -100,6 +121,16 @@ Requires the .NET 8 SDK. The installer also needs [Inno Setup 6](https://jrsoftw
 dotnet build src\Slate\Slate.csproj                          # debug build
 powershell -ExecutionPolicy Bypass -File tools\publish.ps1   # exe, zip and SlateSetup.exe in publish\
 ```
+
+**macOS:** needs Xcode (or the Command Line Tools with Swift 5.9+).
+
+```bash
+cd mac && swift build && .build/debug/Slate     # debug run
+./mac/build.sh                                  # universal Slate.app + publish/Slate-macOS.zip
+swift mac/make-icon.swift                       # regenerate the icon
+```
+
+The version comes from `src/Slate/Slate.csproj`, so both platforms always ship the same number.
 
 **Releasing:** bump `<Version>` in `src/Slate/Slate.csproj`, commit, then `git tag v1.0.1; git push origin main v1.0.1`.
 GitHub Actions builds everything on a clean runner and publishes the release.

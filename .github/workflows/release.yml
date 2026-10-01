@@ -1,7 +1,7 @@
 name: Release
 
-# Push a tag like v1.0.0 to build Slate on a clean Windows machine and publish
-# SlateSetup.exe + the portable zip as a GitHub release.
+# Push a tag like v1.0.0 to build Slate on clean Windows and macOS machines and publish
+# SlateSetup.exe, the portable Windows zip and Slate-macOS.zip as one GitHub release.
 on:
   push:
     tags: ['v*']
@@ -75,3 +75,25 @@ jobs:
             --version $env:GITHUB_REF_NAME.TrimStart('v') `
             --urls "https://github.com/kazuna1/slate/releases/download/$env:GITHUB_REF_NAME/SlateSetup.exe" `
             --submit --token $env:WINGET_TOKEN
+
+  # macOS: universal Slate.app, added to the release the Windows job created.
+  mac:
+    runs-on: macos-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Slate.app
+        run: ./mac/build.sh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: slate-macos
+          path: publish/Slate-macOS.zip
+
+      - name: Add to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" publish/Slate-macOS.zip --clobber
