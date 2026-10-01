@@ -735,6 +735,51 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Renders the bar, as it looks when summoned, to a PNG on a dark backdrop without showing a window.
+    /// Used for README screenshots and for previewing a theme: Slate.exe --render-preview out.png "text".
+    /// </summary>
+    internal void RenderPreview(string path, string text, Color backdrop)
+    {
+        var a = _config.Appearance;
+
+        // Freeze every animation at a flattering frame.
+        Root.BeginAnimation(OpacityProperty, null);
+        GlowLayer.BeginAnimation(OpacityProperty, null);
+        _glow.BeginAnimation(DropShadowEffect.OpacityProperty, null);
+        Root.Opacity = 1;
+        GlowLayer.Opacity = 1;
+        _glow.Opacity = Math.Clamp(a.GlowOpacity, 0, 1);
+        for (int i = 0; i < _shimmerStops.Length; i++)
+        {
+            _shimmerStops[i].BeginAnimation(GradientStop.OffsetProperty, null);
+            _shimmerStops[i].Offset = 0.32 + (i - 1) * 0.1;
+        }
+
+        Input.Text = text;
+        Caret.Opacity = 0;
+
+        var size = new Size(Width, Height);
+        Root.Measure(size);
+        Root.Arrange(new Rect(size));
+        Root.UpdateLayout();
+
+        const double scale = 2; // crisp on high-DPI screens and GitHub
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            (int)Math.Ceiling(Width * scale), (int)Math.Ceiling(Height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+
+        var background = new DrawingVisual();
+        using (var dc = background.RenderOpen())
+            dc.DrawRectangle(new SolidColorBrush(backdrop), null, new Rect(size));
+        rtb.Render(background);
+        rtb.Render(Root);
+
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        using var file = System.IO.File.Create(path);
+        encoder.Save(file);
+    }
+
     private void AnimateState(bool active, bool pop)
     {
         var a = _config.Appearance;

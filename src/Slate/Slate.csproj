@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -12,7 +12,7 @@
     <RootNamespace>Slate</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\slate.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <!-- WinForms (tray icon only) wants DPI set via its API; WPF needs it in the manifest. -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -30,7 +30,7 @@ internal sealed class TrayIcon : IDisposable
         _icon = new NotifyIcon
         {
             Icon = CreateIcon(),
-            Text = "Slate",
+            Text = $"Slate {typeof(TrayIcon).Assembly.GetName().Version?.ToString(3)}",
             ContextMenuStrip = menu,
             Visible = true,
         };

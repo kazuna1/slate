@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -21,6 +21,12 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (e.Args.Length >= 2 && e.Args[0] == "--render-preview")
+        {
+            RenderPreview(e.Args[1], e.Args.Length >= 3 ? e.Args[2] : "cc animu");
+            return;
+        }
 
         _singleInstance = new Mutex(true, @"Local\Slate.SingleInstance", out bool isFirst);
         if (!isFirst)
@@ -67,6 +73,25 @@ public partial class App : Application
 
         if (configError != null) Notify("Slate: config.json has an error", configError + "\nUsing defaults.");
         if (hotkeyError != null) Notify("Slate: bad hotkey", hotkeyError);
+    }
+
+    /// <summary>Writes a PNG of the bar using the current config, then exits. Doesn't touch a running instance.</summary>
+    private void RenderPreview(string path, string text)
+    {
+        int exitCode = 0;
+        try
+        {
+            var config = new ConfigStore().TryLoad(out _) ?? new SlateConfig();
+            var hotkey = ParseHotkey(config.Hotkey, out _);
+            var window = new MainWindow(config, new History(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "slate-preview-history.txt"), 1), hotkey.Display);
+            window.RenderPreview(System.IO.Path.GetFullPath(path), text, System.Windows.Media.Color.FromRgb(0x0C, 0x0A, 0x14));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Rendering preview", ex);
+            exitCode = 1;
+        }
+        Shutdown(exitCode);
     }
 
     private static Hotkey ParseHotkey(string text, out string? error)
