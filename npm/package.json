@@ -1,0 +1,30 @@
+{
+  "name": "kazuna-slate",
+  "version": "1.0.0",
+  "description": "Slate: an always-on command bar for the Windows desktop. Press Win+Space, type a command, it runs in a terminal.",
+  "keywords": ["windows", "launcher", "command-bar", "powershell", "terminal", "hotkey", "productivity"],
+  "homepage": "https://github.com/kazuna1/slate",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kazuna1/slate.git"
+  },
+  "bugs": "https://github.com/kazuna1/slate/issues",
+  "license": "MIT",
+  "author": "Tuguldur Munkhbat",
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "bin": {
+    "slate": "bin/slate.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "postinstall.js"
+  ],
+  "engines": {
+    "node": ">=16"
+  }
+}

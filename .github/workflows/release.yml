@@ -13,6 +13,10 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      # Optional repo secrets; the matching publish step is skipped when one is missing.
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,3 +53,25 @@ jobs:
           gh release create $env:GITHUB_REF_NAME publish/SlateSetup.exe $zip `
             --title "Slate $env:GITHUB_REF_NAME" `
             --notes-file .github/release-notes.md
+
+      # npm: `npm i -g kazuna-slate`. Package version follows the tag.
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/') && env.NPM_TOKEN != ''
+        working-directory: npm
+        shell: pwsh
+        run: |
+          npm version $env:GITHUB_REF_NAME.TrimStart('v') --no-git-tag-version --allow-same-version
+          "//registry.npmjs.org/:_authToken=$env:NPM_TOKEN" | Out-File .npmrc -Encoding ascii
+          npm publish --access public
+
+      # winget: opens the version-bump PR on microsoft/winget-pkgs.
+      # Only works once the first submission (kazuna1.Slate 1.0.0) has been merged.
+      - name: Update winget manifest
+        if: startsWith(github.ref, 'refs/tags/') && env.WINGET_TOKEN != ''
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          ./wingetcreate.exe update kazuna1.Slate `
+            --version $env:GITHUB_REF_NAME.TrimStart('v') `
+            --urls "https://github.com/kazuna1/slate/releases/download/$env:GITHUB_REF_NAME/SlateSetup.exe" `
+            --submit --token $env:WINGET_TOKEN

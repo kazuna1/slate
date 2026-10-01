@@ -3,3 +3,6 @@ obj/
 publish/
 .vs/
 *.user
+node_modules/
+*.tgz
+.npmrc
