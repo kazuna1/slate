@@ -1,4 +1,4 @@
-# Slate
+﻿# Slate
 
 **PowerShell in another skin.** An always-visible command bar on your Windows desktop.
 Press **Win + Space** from anywhere, type a command, hit Enter, and it runs in a new terminal that stays open.
@@ -6,11 +6,11 @@ Press **Win + Space** from anywhere, type a command, hit Enter, and it runs in a
 ![Slate](docs/slate.png)
 
 <p align="center">
-  <a href="https://github.com/__OWNER__/slate/releases/latest/download/SlateSetup.exe">
+  <a href="https://github.com/kazuna1/slate/releases/latest/download/SlateSetup.exe">
     <img src="https://img.shields.io/badge/Download_for_Windows-SlateSetup.exe-2ea44f?style=for-the-badge&logo=windows&logoColor=white" alt="Download Slate for Windows">
   </a>
   <br>
-  <sub>Windows 10/11 · x64 · free, MIT licensed · <a href="https://github.com/__OWNER__/slate/releases/latest">all downloads</a></sub>
+  <sub>Windows 10/11 · x64 · free, MIT licensed · <a href="https://github.com/kazuna1/slate/releases/latest">all downloads</a></sub>
 </p>
 
 - Lives on the desktop and **survives Win + D**.
