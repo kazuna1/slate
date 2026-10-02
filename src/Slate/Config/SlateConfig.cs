@@ -23,6 +23,17 @@ public sealed class SlateConfig
     /// <summary>Name of the last theme picked from the tray menu (shown with a checkmark).</summary>
     public string Theme { get; set; } = "";
 
+    /// <summary>
+    /// Built-in shortcuts: "&lt;key&gt; &lt;folder&gt;" finds the folder by name and runs the command there.
+    /// An empty command just opens a terminal in that folder. Works on any PC; no profile setup needed.
+    /// </summary>
+    public Dictionary<string, string> Shortcuts { get; set; } = new()
+    {
+        ["z"] = "",
+        ["cc"] = "claude",
+        ["vc"] = "code .",
+    };
+
     /// <summary>Tab-completion source: folders zoxide knows about (ranked by how often you use them).</summary>
     public bool UseZoxide { get; set; } = true;
 

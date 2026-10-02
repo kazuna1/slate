@@ -73,6 +73,14 @@ macOS 13 or later, Apple Silicon and Intel.
 | **↑ / ↓** | **↑ / ↓** | Command history |
 | **Esc** | **Esc** | Cancel |
 
+**Built-in shortcuts** work on any machine with no setup. Slate finds the folder by name:
+
+| Type | Does |
+|---|---|
+| `cc slate` | Claude Code in your `slate` folder |
+| `vc slate` | VS Code in it |
+| `z slate` | A terminal in it |
+
 Type `:config` in the bar to customize it, or `:help` for the other built-in commands.
 The full reference is in [docs/config.md](docs/config.md).
 

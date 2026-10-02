@@ -60,7 +60,9 @@ public partial class MainWindow : Window
     private double _barHeight;
 
     // Completion: Tab/Shift+Tab cycle through matches for the last word; ghost text previews the first.
-    private readonly Completer _completer = new();
+    private readonly Projects _projects = new();
+    private readonly Completer _completer;
+    private bool _dismissedShellFlyout;
     private IReadOnlyList<string> _cycle = Array.Empty<string>();
     private int _cycleIndex = -1;
     private int _tokenStart;
@@ -82,6 +84,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _config = config;
         _history = history;
+        _completer = new Completer(_projects);
 
         GlowLayer.Effect = _glow;
 
@@ -183,6 +186,7 @@ public partial class MainWindow : Window
         _active = true;
         _summonedAt = Environment.TickCount64;
         _focusAttempts = 0;
+        _dismissedShellFlyout = false;
         _previousForeground = Native.GetForegroundWindow();
         _completer.Refresh(_config);
 
@@ -228,6 +232,14 @@ public partial class MainWindow : Window
             Dismiss(DismissReason.FocusFailed);
             Notify?.Invoke("Slate", "Couldn't take keyboard focus. Press the hotkey again.");
             return;
+        }
+
+        // Start menu, Search and the notification panel (all "CoreWindow") refuse to give up focus.
+        // Close it with Esc first, the same as the user would, then take focus.
+        if (!_dismissedShellFlyout && Native.GetClassName(Native.GetForegroundWindow()) == "Windows.UI.Core.CoreWindow")
+        {
+            _dismissedShellFlyout = true;
+            Native.TapKey(Native.VK_ESCAPE);
         }
 
         TakeFocus();
@@ -538,12 +550,33 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Built-in shortcut ("cc slate", "vc new airlink"): find the folder, run the command inside it.
+        string command = text;
+        string? folder = null;
+        int space = text.IndexOf(' ');
+        string key = space < 0 ? text : text[..space];
+        if (_config.Shortcuts.TryGetValue(key, out var shortcut))
+        {
+            string query = space < 0 ? string.Empty : text[(space + 1)..].Trim();
+            if (query.Length > 0)
+            {
+                folder = _projects.Resolve(query, _config);
+                if (folder == null)
+                {
+                    Notify?.Invoke("Slate", $"No folder matches \"{query}\". Open it once in a terminal, or add its parent to projectRoots.");
+                    return; // keep the text so it can be fixed
+                }
+                _projects.Visited(folder, _config);
+            }
+            command = shortcut;
+        }
+
         _history.Add(text);
         try
         {
             // We're the foreground process, so we may pass foreground rights to the terminal we start.
             Native.AllowSetForegroundWindow(Native.ASFW_ANY);
-            CommandRunner.Run(text, _config);
+            CommandRunner.Run(command, _config, folder);
         }
         catch (Exception ex)
         {

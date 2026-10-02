@@ -16,7 +16,8 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     let view = BarView()
     private(set) var config: SlateConfig
     private let history: History
-    private let completer = Completer()
+    private let projects = Projects()
+    private lazy var completer = Completer(projects: projects)
 
     var onBuiltin: ((String) -> Void)?
     var notify: ((String, String) -> Void)?
@@ -299,9 +300,26 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             return
         }
 
+        // Built-in shortcut ("cc slate", "vc new airlink"): find the folder, run the command inside it.
+        var command = text
+        var folder: String?
+        let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
+        if let shortcut = config.shortcuts[parts[0]] {
+            let query = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+            if !query.isEmpty {
+                guard let found = projects.resolve(query, config: config) else {
+                    notify?("Slate", "No folder matches \"\(query)\". Open it once in a terminal, or add its parent to projectRoots.")
+                    return // keep the text so it can be fixed
+                }
+                projects.visited(found, config: config)
+                folder = found
+            }
+            command = shortcut
+        }
+
         history.add(text)
         do {
-            try CommandRunner.run(text, config: config)
+            try CommandRunner.run(command, config: config, folder: folder)
         } catch {
             Log.error("Running \"\(text)\"", error)
             notify?("Slate couldn't start the terminal", error.localizedDescription)

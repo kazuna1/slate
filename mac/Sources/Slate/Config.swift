@@ -15,6 +15,13 @@ struct SlateConfig: Codable {
     var launchAtLogin = true
     /// Name of the last theme picked from the menu (shown with a checkmark).
     var theme = ""
+    /// Built-in shortcuts: "<key> <folder>" finds the folder by name and runs the command there.
+    /// An empty command just opens a terminal in that folder. Works on any Mac; no .zshrc setup needed.
+    var shortcuts: [String: String] = [
+        "z": "",
+        "cc": "claude",
+        "vc": "open -a 'Visual Studio Code' .",
+    ]
     var useZoxide = true
     /// Tab completion also offers every subfolder of these.
     var projectRoots = ["~/projects", "~/Developer", "~/code"]
@@ -111,7 +118,8 @@ final class ConfigStore {
     private static func merge(_ base: [String: Any], _ over: [String: Any]) -> [String: Any] {
         var result = base
         for (key, value) in over {
-            if let b = base[key] as? [String: Any], let o = value as? [String: Any] {
+            // "shortcuts" is a user-owned list: replace it, so removing a default sticks.
+            if key != "shortcuts", let b = base[key] as? [String: Any], let o = value as? [String: Any] {
                 result[key] = merge(b, o)
             } else {
                 result[key] = value

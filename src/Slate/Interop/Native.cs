@@ -15,6 +15,7 @@ internal static class Native
     public const int WM_SYSKEYUP = 0x0105;
     public const uint LLKHF_INJECTED = 0x10;
 
+    public const ushort VK_ESCAPE = 0x1B;
     public const int VK_SHIFT = 0x10;
     public const int VK_CONTROL = 0x11;
     public const int VK_MENU = 0x12;

@@ -11,12 +11,14 @@ namespace Slate;
 /// <summary>Opens a terminal running a PowerShell command, leaving it open afterwards.</summary>
 internal static class CommandRunner
 {
-    public static void Run(string command, SlateConfig config)
+    /// <param name="folder">Run inside this folder instead of the configured working directory.</param>
+    /// <param name="command">May be empty: then the terminal just opens in the folder.</param>
+    public static void Run(string command, SlateConfig config, string? folder = null)
     {
         // -EncodedCommand takes base64 UTF-16LE, so quotes and special characters arrive untouched.
-        string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
+        string? encoded = command.Trim().Length == 0 ? null : Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
         string shell = ResolveShell(config.Shell);
-        string workDir = ResolveWorkingDirectory(config.WorkingDirectory);
+        string workDir = folder != null && Directory.Exists(folder) ? folder : ResolveWorkingDirectory(config.WorkingDirectory);
         string terminal = config.Terminal.Trim().ToLowerInvariant();
 
         if (terminal is "wt" or "wt-tab")
@@ -45,10 +47,11 @@ internal static class CommandRunner
         Process.Start(console)?.Dispose();
     }
 
-    private static void AddShellArgs(ProcessStartInfo psi, string? shell, string encoded)
+    private static void AddShellArgs(ProcessStartInfo psi, string? shell, string? encoded)
     {
         if (shell != null) psi.ArgumentList.Add(shell);
         psi.ArgumentList.Add("-NoExit");
+        if (encoded == null) return;
         psi.ArgumentList.Add("-EncodedCommand");
         psi.ArgumentList.Add(encoded);
     }

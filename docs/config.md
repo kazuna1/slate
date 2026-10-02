@@ -12,8 +12,13 @@ Comments (`//`) and trailing commas are allowed.
   "historySize": 500,
   "checkForUpdates": true,        // check GitHub at startup and daily, offer one-click updates
   "theme": "",                    // last theme picked from the Themes menu
-  "useZoxide": true,              // Tab completion from zoxide's ranked folders
-  "projectRoots": [],             // also complete subfolders of these, e.g. ["D:\\code"]
+  "shortcuts": {                  // "<key> <folder>": find the folder, run the command in it
+    "z": "",                      //   z slate   → terminal in the slate folder
+    "cc": "claude",               //   cc slate  → Claude Code in it
+    "vc": "code ."                //   vc slate  → VS Code in it
+  },
+  "useZoxide": true,              // use zoxide's ranking too, when it's installed
+  "projectRoots": [],             // also treat subfolders of these as projects, e.g. ["D:\\code"]
 
   "appearance": {
     "width": 760, "height": 64,
@@ -63,6 +68,23 @@ Slate.exe --render-preview preview.png "cc animu"
 ```
 
 Logs go to `%APPDATA%\Slate\slate.log`.
+
+## Shortcuts
+
+`cc slate`, `vc slate` and `z slate` work on any PC or Mac with no setup. Slate finds the folder itself:
+
+1. A full path, if you type one.
+2. [zoxide](https://github.com/ajeetdsouza/zoxide), if installed (best ranking, learns from every `cd`).
+3. Folders you've opened through Slate before, most used first.
+4. Subfolders of `projectRoots`.
+5. Git repositories Slate finds on its own, plus the folders that contain them. It scans your home folder and
+   every other fixed drive (on Windows) in the background at most every 6 hours, and keeps the list in `projects.json`.
+
+Within each source, an exact folder name beats a prefix, which beats a partial match. Multi-word names work:
+`vc new airlink`. Add your own: `"gh": "gh repo view --web"` makes `gh slate` open its GitHub page.
+On macOS the default `vc` is `open -a 'Visual Studio Code' .`, which works without VS Code's `code` command.
+
+Shortcuts take priority over functions with the same name in your shell profile.
 
 ## Themes
 

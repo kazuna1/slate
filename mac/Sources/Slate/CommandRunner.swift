@@ -7,10 +7,11 @@ import Foundation
 /// zoxide) is loaded. After it finishes, the window drops into a normal shell in whatever directory
 /// the command left you in.
 enum CommandRunner {
-    static func run(_ command: String, config: SlateConfig) throws {
+    /// `folder` runs the command inside that folder; an empty `command` just opens a shell there.
+    static func run(_ command: String, config: SlateConfig, folder: String? = nil) throws {
         cleanUpOldScripts()
         let url = Paths.scripts.appendingPathComponent("run-\(UUID().uuidString.prefix(8)).command")
-        try script(for: command, config: config).write(to: url, atomically: true, encoding: .utf8)
+        try script(for: command, config: config, folder: folder).write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
 
         if !open(url, with: config.terminal), config.terminal != "Terminal" {
@@ -20,9 +21,21 @@ enum CommandRunner {
     }
 
     /// The .command script for a command (separate so it can be tested without opening a terminal).
-    static func script(for command: String, config: SlateConfig) throws -> String {
+    static func script(for command: String, config: SlateConfig, folder: String? = nil) throws -> String {
         let shell = resolveShell(config.shell)
         guard !shell.contains("'") else { throw SlateError("Shell path can't contain a quote: \(shell)") }
+        let dir = folder ?? workingDirectory(config.workingDirectory)
+
+        guard !command.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return """
+            #!/bin/sh
+            cd \(shellQuote(dir)) 2>/dev/null
+            clear
+            exec '\(shell)' -i
+
+            """
+        }
+
         let encoded = Data(command.utf8).base64EncodedString()
         let decode = "printf %s \(encoded) | /usr/bin/base64 --decode"
         let isFish = (shell as NSString).lastPathComponent == "fish"
@@ -30,7 +43,7 @@ enum CommandRunner {
 
         return """
         #!/bin/sh
-        cd \(shellQuote(workingDirectory(config.workingDirectory))) 2>/dev/null
+        cd \(shellQuote(dir)) 2>/dev/null
         clear
         exec '\(shell)' -i -c '\(body); exec '"'"'\(shell)'"'"' -i'
 
