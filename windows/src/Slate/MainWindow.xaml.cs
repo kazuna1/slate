@@ -558,6 +558,16 @@ public partial class MainWindow : Window
         if (_config.Shortcuts.TryGetValue(key, out var shortcut))
         {
             string query = space < 0 ? string.Empty : text[(space + 1)..].Trim();
+
+            // Options after the folder go to the command: "cc slate -r" → claude -r, inside slate.
+            string args = string.Empty;
+            int dash = query.StartsWith('-') ? 0 : query.IndexOf(" -", StringComparison.Ordinal);
+            if (dash >= 0)
+            {
+                args = query[dash..].Trim();
+                query = query[..dash].Trim();
+            }
+
             if (query.Length > 0)
             {
                 folder = _projects.Resolve(query, _config);
@@ -568,7 +578,7 @@ public partial class MainWindow : Window
                 }
                 _projects.Visited(folder, _config);
             }
-            command = shortcut;
+            command = args.Length == 0 || shortcut.Trim().Length == 0 ? shortcut : $"{shortcut} {args}";
         }
 
         _history.Add(text);

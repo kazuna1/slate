@@ -305,7 +305,18 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         var folder: String?
         let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
         if let shortcut = config.shortcuts[parts[0]] {
-            let query = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+            var query = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+
+            // Options after the folder go to the command: "cc slate -r" → claude -r, inside slate.
+            var args = ""
+            if query.hasPrefix("-") {
+                args = query
+                query = ""
+            } else if let dash = query.range(of: " -") {
+                args = String(query[dash.lowerBound...]).trimmingCharacters(in: .whitespaces)
+                query = String(query[..<dash.lowerBound]).trimmingCharacters(in: .whitespaces)
+            }
+
             if !query.isEmpty {
                 guard let found = projects.resolve(query, config: config) else {
                     notify?("Slate", "No folder matches \"\(query)\". Open it once in a terminal, or add its parent to projectRoots.")
@@ -314,7 +325,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
                 projects.visited(found, config: config)
                 folder = found
             }
-            command = shortcut
+            command = args.isEmpty || shortcut.trimmingCharacters(in: .whitespaces).isEmpty ? shortcut : "\(shortcut) \(args)"
         }
 
         history.add(text)

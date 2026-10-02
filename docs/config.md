@@ -80,6 +80,10 @@ Logs go to `%APPDATA%\Slate\slate.log`.
 5. Git repositories Slate finds on its own, plus the folders that contain them. It scans your home folder and
    every other fixed drive (on Windows) in the background at most every 6 hours, and keeps the list in `projects.json`.
 
+Options after the folder name go to the command: `cc slate -r` runs `claude -r` in `slate`,
+`cc slate -c` continues the last conversation, `vc slate --new-window` opens a new VS Code window,
+and `cc -c` (no folder) works too. Anything from the first ` -` on counts as options.
+
 Within each source, an exact folder name beats a prefix, which beats a partial match. Multi-word names work:
 `vc new airlink`. Add your own: `"gh": "gh repo view --web"` makes `gh slate` open its GitHub page.
 On macOS the default `vc` is `open -a 'Visual Studio Code' .`, which works without VS Code's `code` command.

@@ -80,6 +80,7 @@ macOS 13 or later, Apple Silicon and Intel.
 | `cc slate` | Claude Code in your `slate` folder |
 | `vc slate` | VS Code in it |
 | `z slate` | A terminal in it |
+| `cc slate -r` | Options pass through: here, `claude -r` in `slate` |
 
 Type `:config` in the bar to customize it, or `:help` for the other built-in commands.
 The full reference is in [docs/config.md](docs/config.md).
