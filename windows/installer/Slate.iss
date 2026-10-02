@@ -1,4 +1,4 @@
-; Slate installer (Inno Setup 6). Built by tools\publish.ps1, which passes AppVersion and SourceExe.
+; Slate installer (Inno Setup 6). Built by windows\tools\publish.ps1, which passes AppVersion and SourceExe.
 ; Per-user install: no admin prompt, installs to %LOCALAPPDATA%\Programs\Slate.
 
 #ifndef AppVersion

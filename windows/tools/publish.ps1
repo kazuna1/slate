@@ -1,5 +1,5 @@
 # Builds a single, self-contained Slate.exe (no .NET install needed) and zips it for a release.
-#   powershell -ExecutionPolicy Bypass -File tools\publish.ps1 [-Runtime win-x64|win-arm64]
+#   powershell -ExecutionPolicy Bypass -File windows\tools\publish.ps1 [-Runtime win-x64|win-arm64]
 param([string]$Runtime = 'win-x64')
 $ErrorActionPreference = 'Stop'
 
@@ -15,7 +15,7 @@ dotnet publish $project -c Release -r $Runtime --self-contained true `
     -o $out
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$version = (Select-Xml -Path $project -XPath '//Version').Node.InnerText
+$version = (Get-Content (Join-Path (Split-Path $root) 'VERSION') -Raw).Trim()
 $zip = Join-Path $root "publish\Slate-$version-$Runtime.zip"
 Compress-Archive -Path (Join-Path $out 'Slate.exe') -DestinationPath $zip -Force
 

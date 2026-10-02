@@ -1,5 +1,5 @@
-src/**/bin/
-src/**/obj/
+windows/src/**/bin/
+windows/src/**/obj/
 publish/
 .vs/
 *.user

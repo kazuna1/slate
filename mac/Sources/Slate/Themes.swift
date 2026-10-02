@@ -8,7 +8,7 @@ struct Theme {
 
 enum Themes {
     /// Add themes here, one entry each; the Themes menu lists them automatically.
-    /// Keep this list in the same order as src/Slate/Themes.cs.
+    /// Keep this list in the same order as windows/src/Slate/Themes.cs.
     static let all: [Theme] = [
         // Theme(name: "Midnight") { a in
         //     a.background = ["#0F172A", "#020617"]

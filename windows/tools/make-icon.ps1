@@ -1,5 +1,5 @@
-# Renders src/Slate/Assets/slate.ico (purple rounded square with a chevron) at several sizes.
-# Run from anywhere: powershell -ExecutionPolicy Bypass -File tools\make-icon.ps1
+# Renders windows/src/Slate/Assets/slate.ico (purple rounded square with a chevron) at several sizes.
+# Run from anywhere: powershell -ExecutionPolicy Bypass -File windows\tools\make-icon.ps1
 Add-Type -AssemblyName System.Drawing
 
 $out = Join-Path $PSScriptRoot '..\src\Slate\Assets\slate.ico'

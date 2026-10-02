@@ -12,13 +12,14 @@
     <RootNamespace>Slate</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\slate.ico</ApplicationIcon>
-    <Version>1.3.0</Version>
+    <!-- One version for both platforms: the VERSION file at the repo root. -->
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\..\VERSION').Trim())</Version>
     <!-- WinForms (tray icon only) wants DPI set via its API; WPF needs it in the manifest. -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Regenerate with tools/make-icon.ps1 -->
+    <!-- Regenerate with windows/tools/make-icon.ps1 -->
     <EmbeddedResource Include="Assets\slate.ico" LogicalName="Slate.ico" />
   </ItemGroup>
 

@@ -3,7 +3,7 @@ import Foundation
 /// Finds project folders by name, so "cc slate" works on any Mac with no setup.
 /// Sources, best first: zoxide (if installed), folders you've opened through Slate,
 /// subfolders of `projectRoots`, and git repositories Slate discovers on its own.
-/// Mirrors src/Slate/Projects.cs.
+/// Mirrors windows/src/Slate/Projects.cs.
 final class Projects {
     private static let indexURL = Paths.appSupport.appendingPathComponent("projects.json")
     private static let rescanAfter: TimeInterval = 6 * 3600

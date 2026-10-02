@@ -89,7 +89,7 @@ Shortcuts take priority over functions with the same name in your shell profile.
 ## Themes
 
 **Themes** in the tray / menu-bar menu applies a ready-made look by rewriting the `appearance` colors in your config.
-Themes are defined in `src/Slate/Themes.cs` (Windows) and `mac/Sources/Slate/Themes.swift` (macOS); add one entry to each list.
+Themes are defined in `windows/src/Slate/Themes.cs` (Windows) and `mac/Sources/Slate/Themes.swift` (macOS); add one entry to each list.
 
 ## Built-in commands
 
@@ -148,21 +148,21 @@ On macOS the same check downloads `Slate-macOS.zip`, verifies it, swaps the app 
 Requires the .NET 8 SDK. The installer also needs [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
 ```powershell
-dotnet build src\Slate\Slate.csproj                          # debug build
-powershell -ExecutionPolicy Bypass -File tools\publish.ps1   # exe, zip and SlateSetup.exe in publish\
+dotnet build windows\src\Slate\Slate.csproj                                # debug build
+powershell -ExecutionPolicy Bypass -File windows\tools\publish.ps1   # exe, zip and SlateSetup.exe in windows\publish\
 ```
 
 **macOS:** needs Xcode (or the Command Line Tools with Swift 5.9+).
 
 ```bash
 cd mac && swift build && .build/debug/Slate     # debug run
-./mac/build.sh                                  # universal Slate.app + publish/Slate-macOS.zip
+./mac/build.sh                                  # universal Slate.app + mac/publish/Slate-macOS.zip
 swift mac/make-icon.swift                       # regenerate the icon
 ```
 
-The version comes from `src/Slate/Slate.csproj`, so both platforms always ship the same number.
+The version comes from the `VERSION` file at the repo root, so both platforms always ship the same number.
 
-**Releasing:** bump `<Version>` in `src/Slate/Slate.csproj`, commit, then `git tag v1.0.1; git push origin main v1.0.1`.
+**Releasing:** bump `VERSION`, commit, then `git tag v1.0.1; git push origin main v1.0.1`.
 GitHub Actions builds everything on a clean runner and publishes the release.
 With the repo secrets `NPM_TOKEN` and `WINGET_TOKEN` set, it also publishes to npm and opens the winget update PR.
-The winget manifests for the first version are in `winget/` for reference.
+The winget manifests for the first version are in `windows/winget/` for reference.
