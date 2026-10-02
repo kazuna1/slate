@@ -101,8 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func buildStatusItem(hotkeyDisplay: String) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "❯"
-        statusItem.button?.font = .systemFont(ofSize: 15, weight: .bold)
+        statusItem.button?.image = Self.menuBarIcon()
         statusItem.button?.toolTip = "Slate \(Updater.currentVersion)"
 
         let menu = NSMenu()
@@ -122,6 +121,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "Quit Slate", action: #selector(menuQuit), keyEquivalent: "q")
         for item in menu.items where item.action != nil { item.target = self }
         statusItem.menu = menu
+    }
+
+    /// A ❯ inside a rounded square, so it reads as an app icon rather than a bare menu arrow.
+    /// Template image: macOS tints it for light/dark menu bars and the highlighted state.
+    private static func menuBarIcon() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            let box = rect.insetBy(dx: 1.5, dy: 1.5)
+            let frame = NSBezierPath(roundedRect: box, xRadius: 4.5, yRadius: 4.5)
+            frame.lineWidth = 1.5
+            NSColor.black.setStroke()
+            frame.stroke()
+
+            let chevron = NSBezierPath()
+            chevron.move(to: NSPoint(x: box.midX - 2.2, y: box.midY + 4))
+            chevron.line(to: NSPoint(x: box.midX + 2.6, y: box.midY))
+            chevron.line(to: NSPoint(x: box.midX - 2.2, y: box.midY - 4))
+            chevron.lineWidth = 2
+            chevron.lineCapStyle = .round
+            chevron.lineJoinStyle = .round
+            chevron.stroke()
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     func menuWillOpen(_ menu: NSMenu) {
