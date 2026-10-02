@@ -11,6 +11,7 @@ Comments (`//`) and trailing commas are allowed.
   "workingDirectory": "%USERPROFILE%",
   "historySize": 500,
   "checkForUpdates": true,        // check GitHub at startup and daily, offer one-click updates
+  "theme": "",                    // last theme picked from the Themes menu
   "useZoxide": true,              // Tab completion from zoxide's ranked folders
   "projectRoots": [],             // also complete subfolders of these, e.g. ["D:\\code"]
 
@@ -63,6 +64,11 @@ Slate.exe --render-preview preview.png "cc animu"
 
 Logs go to `%APPDATA%\Slate\slate.log`.
 
+## Themes
+
+**Themes** in the tray / menu-bar menu applies a ready-made look by rewriting the `appearance` colors in your config.
+Themes are defined in `src/Slate/Themes.cs` (Windows) and `mac/Sources/Slate/Themes.swift` (macOS); add one entry to each list.
+
 ## Built-in commands
 
 | Command | |
@@ -92,7 +98,7 @@ The config lives in `~/Library/Application Support/Slate/config.json` and has th
 | `appearance.monitor` | `0` | 0 = the display with the menu bar. |
 | `animations.smoothCaret` | – | Windows only. |
 
-The **❯** in the menu bar has Show Slate, Open Config, Reload Config, Launch at Login, Check for Updates and Quit.
+The **❯** in the menu bar has Show Slate, Open Config, Reload Config, Themes, Launch at Login, Check for Updates and Quit.
 If macOS doesn't allow Slate's notifications, messages (like "update available") appear briefly in the bar itself; click it to act on them.
 
 The bar never needs the Accessibility permission. The hotkey uses the system's hotkey API, and commands run through `.command` scripts that your terminal opens.

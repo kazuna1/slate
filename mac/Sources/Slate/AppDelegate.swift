@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var loginItem: NSMenuItem!
     private var updateItem: NSMenuItem!
     private var showItem: NSMenuItem!
+    private var themesMenu: NSMenu!
 
     private var update: UpdateInfo?
     private var notifiedVersion: String?
@@ -110,6 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open Config", action: #selector(menuOpenConfig), keyEquivalent: ",")
         menu.addItem(withTitle: "Reload Config", action: #selector(menuReload), keyEquivalent: "")
+        let themesItem = menu.addItem(withTitle: "Themes", action: nil, keyEquivalent: "")
+        themesMenu = NSMenu()
+        themesItem.submenu = themesMenu
         loginItem = menu.addItem(withTitle: "Launch at Login", action: #selector(menuToggleLogin), keyEquivalent: "")
         updateItem = menu.addItem(withTitle: "Check for Updates…", action: #selector(menuUpdate), keyEquivalent: "")
         menu.addItem(.separator())
@@ -121,11 +125,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        rebuildThemesMenu()
         switch LoginItem.status {
         case .enabled: loginItem.state = .on
         case .requiresApproval: loginItem.state = .mixed
         default: loginItem.state = .off
         }
+    }
+
+    private func rebuildThemesMenu() {
+        themesMenu.removeAllItems()
+        if Themes.all.isEmpty {
+            let soon = themesMenu.addItem(withTitle: "More themes coming soon", action: nil, keyEquivalent: "")
+            soon.isEnabled = false
+            return
+        }
+        for (i, theme) in Themes.all.enumerated() {
+            let item = themesMenu.addItem(withTitle: theme.name, action: #selector(menuTheme(_:)), keyEquivalent: "")
+            item.tag = i
+            item.target = self
+            item.state = theme.name == config.theme ? .on : .off
+        }
+    }
+
+    @objc private func menuTheme(_ sender: NSMenuItem) {
+        guard Themes.all.indices.contains(sender.tag) else { return }
+        let theme = Themes.all[sender.tag]
+        theme.apply(&config.appearance)
+        config.theme = theme.name
+        store.save(config)
+        reload()
     }
 
     @objc private func menuShow() { DispatchQueue.main.async { self.bar.summon() } }

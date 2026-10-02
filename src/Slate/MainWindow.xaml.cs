@@ -637,7 +637,8 @@ public partial class MainWindow : Window
         HintText.Foreground = new SolidColorBrush(placeholderColor);
         VersionText.Visibility = a.ShowVersion ? Visibility.Visible : Visibility.Collapsed;
         VersionText.Text = $"v{Updater.CurrentVersion.ToString(3)}";
-        VersionText.Foreground = new SolidColorBrush(Theme.WithAlpha(placeholderColor, 0.6));
+        VersionText.Foreground = new SolidColorBrush(Theme.WithAlpha(promptColor, 0.9));
+        VersionGlow.Color = glowColor;
 
         Position();
         StartIdleAnimations();

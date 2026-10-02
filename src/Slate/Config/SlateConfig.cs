@@ -20,6 +20,9 @@ public sealed class SlateConfig
     /// <summary>Check GitHub for a newer version at startup and once a day.</summary>
     public bool CheckForUpdates { get; set; } = true;
 
+    /// <summary>Name of the last theme picked from the tray menu (shown with a checkmark).</summary>
+    public string Theme { get; set; } = "";
+
     /// <summary>Tab-completion source: folders zoxide knows about (ranked by how often you use them).</summary>
     public bool UseZoxide { get; set; } = true;
 

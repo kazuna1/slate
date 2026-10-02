@@ -443,8 +443,9 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         view.hint.textColor = placeholderColor
         view.version.isHidden = !a.showVersion
         view.version.stringValue = "v\(Updater.currentVersion)"
-        view.version.font = .systemFont(ofSize: 8.5, weight: .medium)
-        view.version.textColor = placeholderColor.withAlphaComponent(0.6)
+        view.version.font = .systemFont(ofSize: 10.5, weight: .semibold)
+        view.version.textColor = promptColor.withAlphaComponent(0.9)
+        view.version.layer?.shadowColor = glowColor.cgColor
         view.hintBox.layer?.borderColor = NSColor.hex(a.borderColor, fallback: violet).withAlphaComponent(0.45).cgColor
         view.hintBox.layer?.backgroundColor = glowColor.withAlphaComponent(0.12).cgColor
 

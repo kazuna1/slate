@@ -13,6 +13,8 @@ struct SlateConfig: Codable {
     var checkForUpdates = true
     /// Start Slate when you log in. Kept in sync with the menu-bar toggle.
     var launchAtLogin = true
+    /// Name of the last theme picked from the menu (shown with a checkmark).
+    var theme = ""
     var useZoxide = true
     /// Tab completion also offers every subfolder of these.
     var projectRoots = ["~/projects", "~/Developer", "~/code"]

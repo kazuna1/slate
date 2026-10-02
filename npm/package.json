@@ -1,6 +1,6 @@
 {
   "name": "kazuna-slate",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Slate: an always-on command bar for the Windows desktop. Press Win+Space, type a command, it runs in a terminal.",
   "keywords": ["windows", "launcher", "command-bar", "powershell", "terminal", "hotkey", "productivity"],
   "homepage": "https://github.com/kazuna1/slate",

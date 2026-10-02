@@ -67,7 +67,8 @@ public partial class App : Application
         };
         _bar.Show();
 
-        _tray = new TrayIcon(() => _bar.Summon(), OpenConfig, Reload, () => _ = UpdateNowAsync(), Quit);
+        _tray = new TrayIcon(() => _bar.Summon(), OpenConfig, Reload, () => _ = UpdateNowAsync(), Quit,
+            () => _config.Theme, ApplyTheme);
 
         try
         {
@@ -195,6 +196,14 @@ public partial class App : Application
             error = ex.Message + $" Using {Hotkey.DefaultText}.";
             return Hotkey.Parse(Hotkey.DefaultText);
         }
+    }
+
+    private void ApplyTheme(SlateTheme theme)
+    {
+        theme.Apply(_config.Appearance);
+        _config.Theme = theme.Name;
+        _store?.Save(_config);
+        Reload();
     }
 
     private void Reload()

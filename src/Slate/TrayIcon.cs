@@ -12,12 +12,18 @@ internal sealed class TrayIcon : IDisposable
     private Action? _balloonClick;
 
     /// <param name="update">Checks for an update, or installs it if one was already found.</param>
-    public TrayIcon(Action summon, Action openConfig, Action reload, Action update, Action exit)
+    public TrayIcon(Action summon, Action openConfig, Action reload, Action update, Action exit,
+        Func<string> currentTheme, Action<SlateTheme> applyTheme)
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Summon bar", null, (_, _) => summon());
         menu.Items.Add("Open config", null, (_, _) => openConfig());
         menu.Items.Add("Reload config", null, (_, _) => reload());
+
+        var themes = new ToolStripMenuItem("Themes");
+        themes.DropDownItems.Add(new ToolStripMenuItem("More themes coming soon") { Enabled = false });
+        themes.DropDownOpening += (_, _) => RebuildThemes(themes, currentTheme(), applyTheme);
+        menu.Items.Add(themes);
 
         _autostart = new ToolStripMenuItem("Run at startup") { Checked = Autostart.IsEnabled };
         _autostart.Click += (_, _) =>
@@ -60,6 +66,22 @@ internal sealed class TrayIcon : IDisposable
     {
         _balloonClick = onClick;
         _icon.ShowBalloonTip(5000, title, text, ToolTipIcon.Info);
+    }
+
+    private static void RebuildThemes(ToolStripMenuItem parent, string current, Action<SlateTheme> applyTheme)
+    {
+        parent.DropDownItems.Clear();
+        if (Themes.All.Count == 0)
+        {
+            parent.DropDownItems.Add(new ToolStripMenuItem("More themes coming soon") { Enabled = false });
+            return;
+        }
+        foreach (var theme in Themes.All)
+        {
+            var item = new ToolStripMenuItem(theme.Name) { Checked = theme.Name == current };
+            item.Click += (_, _) => applyTheme(theme);
+            parent.DropDownItems.Add(item);
+        }
     }
 
     public void RefreshAutostart() => _autostart.Checked = Autostart.IsEnabled;
