@@ -2,10 +2,9 @@ import Foundation
 
 /// Opens a terminal window running a command in your interactive shell, leaving it open afterwards.
 ///
-/// The command is written into a throwaway .command script as base64 and `eval`ed by an interactive
-/// shell, so quotes and special characters arrive untouched and your rc file (aliases, functions,
-/// zoxide) is loaded. After it finishes, the window drops into a normal shell in whatever directory
-/// the command left you in.
+/// The command is written into a throwaway .command script as base64 and `eval`ed inside your normal
+/// interactive shell, so quotes and special characters arrive untouched and your rc file (aliases,
+/// functions, zoxide) is loaded once. Afterwards you're in that same shell, wherever the command left you.
 enum CommandRunner {
     /// `folder` runs the command inside that folder; an empty `command` just opens a shell there.
     /// Commands starting with "@" run hidden, with no terminal window ("@open -a 'Visual Studio Code' .").
@@ -58,33 +57,82 @@ enum CommandRunner {
     }
 
     /// The .command script for a command (separate so it can be tested without opening a terminal).
+    ///
+    /// Terminal runs it from its own login shell; the script then replaces itself with ONE interactive shell
+    /// that loads your rc file, runs the command, records it in history and stays open. (It used to start a
+    /// shell for the command and another one afterwards: three rc loads instead of two.)
     static func script(for command: String, config: SlateConfig, folder: String? = nil) throws -> String {
         let shell = resolveShell(config.shell)
         guard !shell.contains("'") else { throw SlateError("Shell path can't contain a quote: \(shell)") }
         let dir = folder ?? workingDirectory(config.workingDirectory)
+        let header = "#!/bin/sh\ncd \(shellQuote(dir)) 2>/dev/null\nclear\n"
 
         guard !command.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return """
-            #!/bin/sh
-            cd \(shellQuote(dir)) 2>/dev/null
-            clear
-            exec '\(shell)' -i
-
-            """
+            return header + "exec '\(shell)' -i\n"
         }
 
-        let encoded = Data(command.utf8).base64EncodedString()
-        let decode = "printf %s \(encoded) | /usr/bin/base64 --decode"
-        let isFish = (shell as NSString).lastPathComponent == "fish"
-        let body = isFish ? "eval (\(decode) | string collect)" : "eval \"$(\(decode))\""
+        let encoded = Data(command.utf8).base64EncodedString() // base64: no quoting can break
+        let wrap = try wrapperDirectory()
+        switch (shell as NSString).lastPathComponent {
+        case "zsh":
+            // zsh reads .zshenv/.zshrc from $ZDOTDIR; Slate's pair loads yours, then runs the command.
+            return header + "SLATE_RUN=\(encoded) SLATE_ZDOTDIR=\"${ZDOTDIR-}\" ZDOTDIR=\(shellQuote(wrap.path)) exec '\(shell)' -i\n"
+        case "bash":
+            return header + "SLATE_RUN=\(encoded) exec '\(shell)' --rcfile \(shellQuote(wrap.appendingPathComponent("bashrc").path)) -i\n"
+        case "fish":
+            let run = "set -l c (printf %s $SLATE_RUN | /usr/bin/base64 --decode | string collect); set -e SLATE_RUN; eval $c"
+            return header + "SLATE_RUN=\(encoded) exec '\(shell)' -C \(shellQuote(run))\n"
+        default:
+            // Unknown shell: run the command, then a fresh interactive shell.
+            let body = "eval \"$(printf %s \(encoded) | /usr/bin/base64 --decode)\""
+            return header + "exec '\(shell)' -i -c '\(body); exec '\"'\"'\(shell)'\"'\"' -i'\n"
+        }
+    }
 
-        return """
-        #!/bin/sh
-        cd \(shellQuote(dir)) 2>/dev/null
-        clear
-        exec '\(shell)' -i -c '\(body); exec '"'"'\(shell)'"'"' -i'
+    /// Startup files that load the user's own config and then run $SLATE_RUN inside the same shell.
+    private static func wrapperDirectory() throws -> URL {
+        let dir = Paths.scripts.appendingPathComponent("shell", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let files = [
+            ".zshenv": """
+            # Slate: your own .zshenv, then .zshrc below.
+            [[ -f ${SLATE_ZDOTDIR:-$HOME}/.zshenv ]] && source ${SLATE_ZDOTDIR:-$HOME}/.zshenv
 
-        """
+            """,
+            ".zshrc": """
+            # Slate: put ZDOTDIR back, load your .zshrc, then run the command in this same shell.
+            if [[ -n $SLATE_ZDOTDIR ]]; then ZDOTDIR=$SLATE_ZDOTDIR; else unset ZDOTDIR; fi
+            unset SLATE_ZDOTDIR
+            [[ -f ${ZDOTDIR:-$HOME}/.zshrc ]] && source ${ZDOTDIR:-$HOME}/.zshrc
+            if [[ -n $SLATE_RUN ]]; then
+              __slate_cmd=$(print -r -- $SLATE_RUN | /usr/bin/base64 --decode)
+              unset SLATE_RUN
+              print -s -- $__slate_cmd
+              eval -- $__slate_cmd
+              unset __slate_cmd
+            fi
+
+            """,
+            "bashrc": """
+            # Slate: load your .bashrc, then run the command in this same shell.
+            [ -f ~/.bashrc ] && . ~/.bashrc
+            if [ -n "$SLATE_RUN" ]; then
+              __slate_cmd=$(printf %s "$SLATE_RUN" | /usr/bin/base64 --decode)
+              unset SLATE_RUN
+              history -s "$__slate_cmd"
+              eval "$__slate_cmd"
+              unset __slate_cmd
+            fi
+
+            """,
+        ]
+        for (name, content) in files {
+            let url = dir.appendingPathComponent(name)
+            if (try? String(contentsOf: url, encoding: .utf8)) != content {
+                try content.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+        return dir
     }
 
     /// Asks Launch Services to open the script in `app` and returns at once; `onFailure` runs on the main thread.
