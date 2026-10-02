@@ -60,6 +60,7 @@ public partial class App : Application
             args.Handled = true;
         };
 
+        Updater.DeleteOldInstallers();
         _store = new ConfigStore();
         string? configError = null;
         _config = _store.TryLoad(out configError) ?? new SlateConfig();

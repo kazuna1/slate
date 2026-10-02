@@ -68,6 +68,25 @@ internal static class Updater
         Process.Start(psi)?.Dispose();
     }
 
+    /// <summary>
+    /// Removes installers left in %TEMP% by earlier updates (64 MB each). Runs when Slate starts,
+    /// which is after the installer has finished; a file still in use is skipped.
+    /// </summary>
+    public static void DeleteOldInstallers() => Task.Run(() =>
+    {
+        foreach (var file in Directory.EnumerateFiles(Path.GetTempPath(), "SlateSetup-*.exe"))
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // still running or locked: try again next start
+            }
+        }
+    });
+
     /// <summary>Starts the downloaded installer silently; it closes Slate, replaces it and relaunches it (/RELAUNCH=1).</summary>
     public static void RunInstaller(string path) =>
         Process.Start(new ProcessStartInfo(path, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /RELAUNCH=1")
