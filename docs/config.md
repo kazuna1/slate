@@ -37,6 +37,7 @@ Comments (`//`) and trailing commas are allowed.
     "fontSize": 20,
     "showHint": true,
     "hintText": null,             // defaults to the hotkey
+    "showVersion": true,          // tiny version tag under the hint
     "idleOpacity": 0.9            // opacity while sitting on the desktop
   },
 

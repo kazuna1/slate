@@ -441,6 +441,10 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         view.hint.stringValue = (a.hintText?.isEmpty == false ? a.hintText! : hotkeyDisplay)
         view.hint.font = .systemFont(ofSize: 12)
         view.hint.textColor = placeholderColor
+        view.version.isHidden = !a.showVersion
+        view.version.stringValue = "v\(Updater.currentVersion)"
+        view.version.font = .systemFont(ofSize: 8.5, weight: .medium)
+        view.version.textColor = placeholderColor.withAlphaComponent(0.6)
         view.hintBox.layer?.borderColor = NSColor.hex(a.borderColor, fallback: violet).withAlphaComponent(0.45).cgColor
         view.hintBox.layer?.backgroundColor = glowColor.withAlphaComponent(0.12).cgColor
 

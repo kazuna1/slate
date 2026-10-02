@@ -49,6 +49,8 @@ final class BarView: NSView {
     let message = NSTextField(labelWithString: "")
     let hintBox = NSView()
     let hint = NSTextField(labelWithString: "")
+    /// Tiny version tag in the bottom-right corner, under the hotkey hint.
+    let version = NSTextField(labelWithString: "")
 
     var margin: CGFloat = 40
     var cornerRadius: CGFloat = 18
@@ -85,7 +87,7 @@ final class BarView: NSView {
 
         message.isHidden = true
         message.lineBreakMode = .byTruncatingTail
-        for label in [prompt, ghost, hint, message] {
+        for label in [prompt, ghost, hint, message, version] {
             label.isSelectable = false
             label.drawsBackground = false
             label.isBordered = false
@@ -102,6 +104,7 @@ final class BarView: NSView {
         addSubview(input)
         addSubview(message)
         addSubview(hintBox)
+        addSubview(version)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -131,12 +134,21 @@ final class BarView: NSView {
         prompt.frame = NSRect(x: bar.minX + 22, y: (bar.midY - p.height / 2).rounded(), width: p.width, height: p.height)
 
         var right = bar.maxX - 14
+        let v = version.isHidden ? .zero : version.fittingSize
+        let gap: CGFloat = version.isHidden ? 0 : 1
         if !hintBox.isHidden {
             let h = hint.fittingSize
             let box = NSSize(width: h.width + 18, height: h.height + 8)
-            hintBox.frame = NSRect(x: right - box.width, y: (bar.midY - box.height / 2).rounded(), width: box.width, height: box.height)
+            // Hint and version are centred together as one column.
+            let column = box.height + gap + v.height
+            let top = bar.midY + column / 2
+            hintBox.frame = NSRect(x: right - box.width, y: (top - box.height).rounded(), width: box.width, height: box.height)
             hint.frame = NSRect(x: 9, y: 4, width: h.width, height: h.height)
+            version.frame = NSRect(x: hintBox.frame.maxX - v.width - 2, y: (hintBox.frame.minY - gap - v.height).rounded(),
+                                   width: v.width, height: v.height)
             right = hintBox.frame.minX - 12
+        } else {
+            version.frame = NSRect(x: right - v.width, y: bar.minY + 4, width: v.width, height: v.height)
         }
 
         let x = prompt.frame.maxX + 14

@@ -56,15 +56,20 @@
                     <Rectangle x:Name="Caret" Width="2" RadiusX="1" RadiusY="1" Opacity="0"/>
                 </Canvas>
 
-                <Border x:Name="Hint"
-                        Grid.Column="2"
-                        VerticalAlignment="Center"
-                        Margin="12,0,0,0"
-                        Padding="9,4"
-                        CornerRadius="7"
-                        BorderThickness="1">
-                    <TextBlock x:Name="HintText" FontSize="12" FontFamily="Segoe UI"/>
-                </Border>
+                <!-- Hotkey hint with a tiny version tag under it, centred together. -->
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Border x:Name="Hint"
+                            Padding="9,4"
+                            CornerRadius="7"
+                            BorderThickness="1">
+                        <TextBlock x:Name="HintText" FontSize="12" FontFamily="Segoe UI"/>
+                    </Border>
+                    <TextBlock x:Name="VersionText"
+                               HorizontalAlignment="Right"
+                               Margin="0,1,2,0"
+                               FontSize="9"
+                               FontFamily="Segoe UI"/>
+                </StackPanel>
             </Grid>
         </Border>
 

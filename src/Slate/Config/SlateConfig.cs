@@ -69,6 +69,9 @@ public sealed class AppearanceConfig
     public double FontSize { get; set; } = 20;
 
     public bool ShowHint { get; set; } = true;
+
+    /// <summary>Tiny version number under the hint.</summary>
+    public bool ShowVersion { get; set; } = true;
     /// <summary>Overrides the hint text; defaults to the hotkey, e.g. "Win + Space".</summary>
     public string? HintText { get; set; }
 

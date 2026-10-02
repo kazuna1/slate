@@ -635,6 +635,9 @@ public partial class MainWindow : Window
         Hint.Background = new SolidColorBrush(Theme.WithAlpha(glowColor, 0.12));
         HintText.Text = string.IsNullOrWhiteSpace(a.HintText) ? _hotkeyDisplay : a.HintText;
         HintText.Foreground = new SolidColorBrush(placeholderColor);
+        VersionText.Visibility = a.ShowVersion ? Visibility.Visible : Visibility.Collapsed;
+        VersionText.Text = $"v{Updater.CurrentVersion.ToString(3)}";
+        VersionText.Foreground = new SolidColorBrush(Theme.WithAlpha(placeholderColor, 0.6));
 
         Position();
         StartIdleAnimations();

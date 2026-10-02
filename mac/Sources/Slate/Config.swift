@@ -45,6 +45,8 @@ struct SlateConfig: Codable {
         var fontFamily = "SF Mono, Menlo"
         var fontSize: Double = 20
         var showHint = true
+        /// Tiny version number under the hint.
+        var showVersion = true
         /// Overrides the hint; defaults to the hotkey, e.g. "⌥ Space".
         var hintText: String?
         /// Bar opacity while it sits on the desktop (1 when summoned).
