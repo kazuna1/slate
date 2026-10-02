@@ -11,14 +11,25 @@ namespace Slate;
 /// <summary>Opens a terminal running a PowerShell command, leaving it open afterwards.</summary>
 internal static class CommandRunner
 {
+    /// <summary>Commands starting with this run hidden, with no terminal window ("@code .").</summary>
+    public const char BackgroundPrefix = '@';
+
     /// <param name="folder">Run inside this folder instead of the configured working directory.</param>
     /// <param name="command">May be empty: then the terminal just opens in the folder.</param>
-    public static void Run(string command, SlateConfig config, string? folder = null)
+    /// <param name="onBackgroundFailure">For "@" commands: called (on a worker thread) with the error if it fails.</param>
+    public static void Run(string command, SlateConfig config, string? folder = null, Action<string>? onBackgroundFailure = null)
     {
-        // -EncodedCommand takes base64 UTF-16LE, so quotes and special characters arrive untouched.
-        string? encoded = command.Trim().Length == 0 ? null : Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
         string shell = ResolveShell(config.Shell);
         string workDir = folder != null && Directory.Exists(folder) ? folder : ResolveWorkingDirectory(config.WorkingDirectory);
+
+        if (command.TrimStart().StartsWith(BackgroundPrefix))
+        {
+            RunHidden(command.TrimStart()[1..], shell, workDir, onBackgroundFailure);
+            return;
+        }
+
+        // -EncodedCommand takes base64 UTF-16LE, so quotes and special characters arrive untouched.
+        string? encoded = command.Trim().Length == 0 ? null : Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
         string terminal = config.Terminal.Trim().ToLowerInvariant();
 
         if (terminal is "wt" or "wt-tab")
@@ -45,6 +56,40 @@ internal static class CommandRunner
         var console = new ProcessStartInfo(shell) { UseShellExecute = false, WorkingDirectory = workDir };
         AddShellArgs(console, null, encoded);
         Process.Start(console)?.Dispose();
+    }
+
+    /// <summary>
+    /// Runs a launcher-style command ("code .", "explorer .") in a hidden shell that exits when the command
+    /// returns, so no window is left behind. The profile is skipped for speed.
+    /// </summary>
+    private static void RunHidden(string command, string shell, string workDir, Action<string>? onFailure)
+    {
+        var psi = new ProcessStartInfo(shell)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = workDir,
+            // No output redirection: the app it launches (VS Code) would inherit the pipes and keep them
+            // open, so waiting would last as long as the app. The exit code is enough.
+        };
+        psi.ArgumentList.Add("-NoProfile");
+        psi.ArgumentList.Add("-NonInteractive");
+        psi.ArgumentList.Add("-EncodedCommand");
+        psi.ArgumentList.Add(Convert.ToBase64String(Encoding.Unicode.GetBytes(command)));
+
+        var p = Process.Start(psi) ?? throw new InvalidOperationException("Couldn't start the shell.");
+        _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            using (p)
+            {
+                await p.WaitForExitAsync();
+                if (p.ExitCode != 0)
+                {
+                    Log.Write($"Background command \"{command}\" exited with code {p.ExitCode}");
+                    onFailure?.Invoke($"\"{command}\" failed (exit code {p.ExitCode}). Run it without @ to see the error.");
+                }
+            }
+        });
     }
 
     private static void AddShellArgs(ProcessStartInfo psi, string? shell, string? encoded)

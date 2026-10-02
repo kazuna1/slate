@@ -592,7 +592,8 @@ public partial class MainWindow : Window
         {
             // We're the foreground process, so we may pass foreground rights to the terminal we start.
             Native.AllowSetForegroundWindow(Native.ASFW_ANY);
-            CommandRunner.Run(command, _config, folder);
+            CommandRunner.Run(command, _config, folder,
+                error => Dispatcher.BeginInvoke(() => Notify?.Invoke("Slate", error)));
         }
         catch (Exception ex)
         {

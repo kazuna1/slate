@@ -15,7 +15,7 @@ Comments (`//`) and trailing commas are allowed.
   "shortcuts": {                  // "<key> <folder>": find the folder, run the command in it
     "z": "",                      //   z slate   → terminal in the slate folder
     "cc": "claude",               //   cc slate  → Claude Code in it
-    "vs": "code ."                //   vs slate  → VS Code in it
+    "vs": "@code ."               //   vs slate  → VS Code in it (@ = no terminal left open)
   },
   "useZoxide": true,              // use zoxide's ranking too, when it's installed
   "projectRoots": [],             // also treat subfolders of these as projects, e.g. ["D:\\code"]
@@ -87,6 +87,11 @@ and `cc -c` (no folder) works too. Anything from the first ` -` on counts as opt
 Within each source, an exact folder name beats a prefix, which beats a partial match. Multi-word names work:
 `vs new airlink`. Add your own: `"gh": "gh repo view --web"` makes `gh slate` open its GitHub page.
 On macOS the default `vs` is `open -a 'Visual Studio Code' .`, which works without VS Code's `code` command.
+
+**No terminal for launchers:** a command that starts with `@` runs hidden, and the hidden shell exits as soon as
+the command returns, so nothing stays open behind VS Code. That's why the default `vs` is `@code .`. It works for anything
+that just starts an app (`"ex": "@explorer ."`, `"gd": "@github ."`), and you can type it directly too: `@code .`.
+Hidden commands skip your shell profile on Windows (for speed); if one fails, Slate tells you the exit code.
 
 Shortcuts take priority over functions with the same name in your shell profile.
 

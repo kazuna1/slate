@@ -330,7 +330,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
         history.add(text)
         do {
-            try CommandRunner.run(command, config: config, folder: folder)
+            try CommandRunner.run(command, config: config, folder: folder) { [weak self] error in self?.notify?("Slate", error) }
         } catch {
             Log.error("Running \"\(text)\"", error)
             notify?("Slate couldn't start the terminal", error.localizedDescription)

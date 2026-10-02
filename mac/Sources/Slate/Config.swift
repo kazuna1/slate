@@ -20,7 +20,7 @@ struct SlateConfig: Codable {
     var shortcuts: [String: String] = [
         "z": "",
         "cc": "claude",
-        "vs": "open -a 'Visual Studio Code' .",
+        "vs": "@open -a 'Visual Studio Code' .", // "@": runs hidden, no terminal left behind
     ]
     var useZoxide = true
     /// Tab completion also offers every subfolder of these.
@@ -102,11 +102,18 @@ final class ConfigStore {
         let defaults = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SlateConfig())) as? [String: Any] ?? [:]
         let merged = Self.merge(defaults, user)
         var config = try JSONDecoder().decode(SlateConfig.self, from: JSONSerialization.data(withJSONObject: merged))
+        var changed = false
         // 1.3.4: the VS Code shortcut was renamed from "vc" to "vs".
         if let vsCode = config.shortcuts.removeValue(forKey: "vc") {
             if config.shortcuts["vs"] == nil { config.shortcuts["vs"] = vsCode }
-            save(config)
+            changed = true
         }
+        // 1.3.5: VS Code opens without leaving a terminal behind.
+        if config.shortcuts["vs"] == "open -a 'Visual Studio Code' ." {
+            config.shortcuts["vs"] = "@open -a 'Visual Studio Code' ."
+            changed = true
+        }
+        if changed { save(config) }
         return config
     }
 

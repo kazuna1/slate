@@ -79,13 +79,20 @@ internal sealed class ConfigStore : IDisposable
     /// <summary>Upgrades settings saved by older versions. Returns true if anything changed.</summary>
     private static bool Migrate(SlateConfig config)
     {
+        bool changed = false;
         // 1.3.4: the VS Code shortcut was renamed from "vc" to "vs".
         if (config.Shortcuts.Remove("vc", out var vsCode))
         {
             config.Shortcuts.TryAdd("vs", vsCode);
-            return true;
+            changed = true;
         }
-        return false;
+        // 1.3.5: VS Code opens without leaving a terminal behind.
+        if (config.Shortcuts.TryGetValue("vs", out var vs) && vs == "code .")
+        {
+            config.Shortcuts["vs"] = "@code .";
+            changed = true;
+        }
+        return changed;
     }
 
     public void Save(SlateConfig config)
