@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var updateItem: NSMenuItem!
     private var showItem: NSMenuItem!
     private var themesMenu: NSMenu!
+    private var folderItem: NSMenuItem!
+    private var warnedMissingFolder: String?
 
     private var update: UpdateInfo?
     private var notifiedVersion: String?
@@ -51,8 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         if store.createdNew {
-            notifier.post("Slate is running", "Press \(hotkey.display) anywhere to summon the bar. The ❯ in the menu bar has options.")
+            bar.showMessage("Slate is running · press \(hotkey.display)",
+                            "Commands run in your home folder. Click here to choose a different one.",
+                            action: { [weak self] in self?.chooseDefaultFolder() })
         }
+        checkDefaultFolder()
         ensureLoginItem()
         if let configError { notifier.post("Slate: config.json has an error", configError + " Using defaults.") }
         if let hotkeyError { notifier.post("Slate: bad hotkey", hotkeyError) }
@@ -91,6 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         config = newConfig
         history.maxSize = max(1, newConfig.historySize)
         bar.apply(newConfig, hotkeyDisplay: hotkey.display)
+        checkDefaultFolder()
     }
 
     private func openConfig() {
@@ -113,6 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let themesItem = menu.addItem(withTitle: "Themes", action: nil, keyEquivalent: "")
         themesMenu = NSMenu()
         themesItem.submenu = themesMenu
+        folderItem = menu.addItem(withTitle: "Default Folder…", action: #selector(menuDefaultFolder), keyEquivalent: "")
         loginItem = menu.addItem(withTitle: "Launch at Login", action: #selector(menuToggleLogin), keyEquivalent: "")
         updateItem = menu.addItem(withTitle: "Check for Updates…", action: #selector(menuUpdate), keyEquivalent: "")
         menu.addItem(.separator())
@@ -148,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        folderItem.title = "Default Folder: \(abbreviatePath(CommandRunner.workingDirectory(config.workingDirectory)))…"
         rebuildThemesMenu()
         switch LoginItem.status {
         case .enabled: loginItem.state = .on
@@ -178,6 +186,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         config.theme = theme.name
         store.save(config)
         reload()
+    }
+
+    @objc private func menuDefaultFolder() { chooseDefaultFolder() }
+
+    // MARK: Default folder
+
+    /// Folder picker for where commands run, clones go, and which subfolders count as projects.
+    private func chooseDefaultFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Default folder for Slate"
+        panel.message = "Commands run here, \"git clone <name>\" clones here, and its folders become projects."
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: CommandRunner.workingDirectory(config.workingDirectory))
+        NSApp.activate(ignoringOtherApps: true) // a menu-bar app has to come forward for the dialog
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        setDefaultFolder(url.path)
+    }
+
+    private func setDefaultFolder(_ path: String) {
+        config.workingDirectory = abbreviatePath(path)
+        store.save(config)
+        reload()
+        notifier.post("Slate", "Commands now run in \(abbreviatePath(path)).")
+    }
+
+    /// ":cd" shows the default folder; ":cd <path or project>" sets it; ":cd ~" / "home" / "." resets it.
+    private func changeDirectory(_ arg: String) {
+        let current = abbreviatePath(CommandRunner.workingDirectory(config.workingDirectory))
+        switch arg.lowercased() {
+        case "":
+            notifier.post("Default folder", "\(current). Change it with :cd <folder>, or from the menu.")
+        case "~", "home", ".":
+            setDefaultFolder(NSHomeDirectory())
+        default:
+            let path = expandPath(arg)
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
+                setDefaultFolder(path)
+            } else if let found = bar.resolveFolder(arg) {
+                setDefaultFolder(found)
+            } else {
+                notifier.post("Slate", "No folder matches \"\(arg)\".")
+            }
+        }
+    }
+
+    /// Says once (per folder) when the saved default folder is gone, instead of failing silently.
+    private func checkDefaultFolder() {
+        let setting = config.workingDirectory
+        guard !CommandRunner.defaultFolderExists(setting), warnedMissingFolder != setting else { return }
+        warnedMissingFolder = setting
+        bar.showMessage("Default folder not found", "\(setting) is missing, so commands run in your home folder. Click to choose another.",
+                        action: { [weak self] in self?.chooseDefaultFolder() })
     }
 
     @objc private func menuShow() { DispatchQueue.main.async { self.bar.summon() } }
@@ -230,8 +295,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: Built-in commands
 
     private func handleBuiltin(_ text: String) {
-        let parts = text.dropFirst().split(separator: " ", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
-        let cmd = parts.first ?? "", arg = parts.count > 1 ? parts[1] : ""
+        let raw = text.dropFirst().split(separator: " ", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+        let cmd = raw.first?.lowercased() ?? "", rawArg = raw.count > 1 ? raw[1] : ""
+        let arg = rawArg.lowercased()
+        if cmd == "cd" {
+            changeDirectory(rawArg) // paths are case-sensitive
+            return
+        }
 
         switch (cmd, arg) {
         case ("exit", _), ("quit", _): NSApp.terminate(nil)
@@ -242,7 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case ("history", "clear"): history.clear(); notifier.post("Slate", "History cleared.")
         case ("autostart", "on"): setLoginItem(true)
         case ("autostart", "off"): setLoginItem(false)
-        case ("help", _): notifier.post("Slate commands", ":config  :reload  :update  :version  :autostart on|off  :history clear  :exit")
+        case ("help", _): notifier.post("Slate commands", ":cd <folder>  :config  :reload  :update  :version  :autostart on|off  :history clear  :exit")
         default: notifier.post("Slate", "Unknown command \"\(text)\". Try :help")
         }
     }

@@ -61,6 +61,11 @@ func expandPath(_ path: String) -> String {
     return (p as NSString).expandingTildeInPath
 }
 
+/// "/Users/tugu/projects" → "~/projects", for display and for saving in the config.
+func abbreviatePath(_ path: String) -> String {
+    (path as NSString).abbreviatingWithTildeInPath
+}
+
 /// Single-quotes a word for POSIX shells when it needs it.
 func shellQuote(_ s: String) -> String {
     let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "@%+=:,./-_"))

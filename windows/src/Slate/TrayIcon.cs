@@ -13,7 +13,7 @@ internal sealed class TrayIcon : IDisposable
 
     /// <param name="update">Checks for an update, or installs it if one was already found.</param>
     public TrayIcon(Action summon, Action openConfig, Action reload, Action update, Action exit,
-        Func<string> currentTheme, Action<SlateTheme> applyTheme)
+        Func<string> currentTheme, Action<SlateTheme> applyTheme, Func<string> defaultFolder, Action chooseFolder)
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Summon bar", null, (_, _) => summon());
@@ -24,6 +24,11 @@ internal sealed class TrayIcon : IDisposable
         themes.DropDownItems.Add(new ToolStripMenuItem("More themes coming soon") { Enabled = false });
         themes.DropDownOpening += (_, _) => RebuildThemes(themes, currentTheme(), applyTheme);
         menu.Items.Add(themes);
+
+        var folder = new ToolStripMenuItem("Default folder…");
+        folder.Click += (_, _) => chooseFolder();
+        menu.Items.Add(folder);
+        menu.Opening += (_, _) => folder.Text = $"Default folder: {defaultFolder()}…";
 
         _autostart = new ToolStripMenuItem("Run at startup") { Checked = Autostart.IsEnabled };
         _autostart.Click += (_, _) =>

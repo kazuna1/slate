@@ -134,10 +134,26 @@ internal static class CommandRunner
                 catch (ArgumentException) { return false; }
             });
 
-    private static string ResolveWorkingDirectory(string setting)
+    /// <summary>The default folder (config <c>workingDirectory</c>), or home if it's missing.</summary>
+    public static string ResolveWorkingDirectory(string setting) =>
+        DefaultFolderExists(setting) ? Expand(setting) : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    public static bool DefaultFolderExists(string setting) => Directory.Exists(Expand(setting));
+
+    private static string Expand(string? setting)
     {
-        string dir = Environment.ExpandEnvironmentVariables(setting ?? string.Empty).TrimEnd('\\');
+        string dir = Environment.ExpandEnvironmentVariables(setting ?? string.Empty).Trim();
+        if (dir == "~" || dir.StartsWith("~\\") || dir.StartsWith("~/"))
+            dir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + dir[1..];
+        dir = dir.TrimEnd('\\', '/');
         if (dir.Length == 2 && dir[1] == ':') dir += "\\";
-        return Directory.Exists(dir) ? dir : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return dir;
+    }
+
+    /// <summary>"C:\\Users\\me\\code" → "~\\code", for display.</summary>
+    public static string Abbreviate(string path)
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return path.StartsWith(home, StringComparison.OrdinalIgnoreCase) ? "~" + path[home.Length..] : path;
     }
 }

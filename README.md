@@ -81,6 +81,9 @@ macOS 13 or later, Apple Silicon and Intel.
 | `vs slate` | VS Code in it |
 | `z slate` | A terminal in it |
 | `cc slate -r` | Options pass through: here, `claude -r` in `slate` |
+| `git clone ladder` | Finds `ladder` among your GitHub repos and clones it (also `gc ladder`) |
+
+**Default folder:** commands run, and repos clone, in a folder you choose: tray / menu bar → **Default folder…**, or type `:cd ~/projects`.
 
 Type `:config` in the bar to customize it, or `:help` for the other built-in commands.
 The full reference is in [docs/config.md](docs/config.md).

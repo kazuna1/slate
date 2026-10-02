@@ -110,6 +110,10 @@ internal sealed class Projects
         }
         if (config.UseZoxide) result.AddRange(Zoxide.List());
         foreach (var root in config.ProjectRoots) result.AddRange(Subfolders(root));
+        // Projects in the default folder count too (not when it's home: that's Desktop, Documents, ...).
+        string baseDir = CommandRunner.ResolveWorkingDirectory(config.WorkingDirectory);
+        if (!baseDir.Equals(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), StringComparison.OrdinalIgnoreCase))
+            result.AddRange(Subfolders(baseDir));
         lock (_lock)
         {
             result.AddRange(_index.Repos);

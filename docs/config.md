@@ -95,6 +95,29 @@ Hidden commands skip your shell profile on Windows (for speed); if one fails, Sl
 
 Shortcuts take priority over functions with the same name in your shell profile.
 
+## Default folder
+
+Plain commands, `z` without a folder, and `git clone` all run in your **default folder** (`workingDirectory`).
+Its subfolders also count as projects for `cc` / `vs` / `z` and Tab completion. Set it any of these ways:
+
+- Tray (Windows) / ❯ menu bar (macOS) → **Default folder…** opens a folder picker. The menu shows the current one.
+- In the bar: `:cd ~/projects` (a path), `:cd slate` (a project, found like `cc slate`), `:cd` (show it),
+  `:cd ~` (back to your home folder).
+- In the config: `"workingDirectory": "~/projects"`.
+
+The placeholder shows it: `run anything...  ·  ~/projects`. If the folder disappears (deleted, unplugged drive),
+Slate uses your home folder and tells you once.
+
+## Clone by name
+
+`git clone ladder` (or `gc ladder`) looks `ladder` up among every GitHub repo your `gh` login can see (your own,
+ones you collaborate on, and your orgs), clones it into the default folder in a terminal, and leaves you inside it.
+`cc ladder` works right after. Tab completes repo names. If several repos share the name, Slate lists them; type
+`git clone owner/name`. URLs, paths and anything with extra options go to `git` unchanged.
+
+Needs the [GitHub CLI](https://cli.github.com) logged in (`gh auth login`). The repo list is cached in `repos.json`
+and refreshed in the background at most once an hour.
+
 ## Themes
 
 **Themes** in the tray / menu-bar menu applies a ready-made look by rewriting the `appearance` colors in your config:

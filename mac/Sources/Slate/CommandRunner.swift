@@ -113,11 +113,14 @@ enum CommandRunner {
         }
     }
 
-    private static func workingDirectory(_ setting: String) -> String {
-        let dir = expandPath(setting)
+    /// The default folder (config `workingDirectory`), or home if it's missing.
+    static func workingDirectory(_ setting: String) -> String {
+        defaultFolderExists(setting) ? expandPath(setting) : NSHomeDirectory()
+    }
+
+    static func defaultFolderExists(_ setting: String) -> Bool {
         var isDir: ObjCBool = false
-        return FileManager.default.fileExists(atPath: dir, isDirectory: &isDir) && isDir.boolValue
-            ? dir : NSHomeDirectory()
+        return FileManager.default.fileExists(atPath: expandPath(setting), isDirectory: &isDir) && isDir.boolValue
     }
 
     /// Terminal reads the script right away; anything older than an hour is safe to delete.

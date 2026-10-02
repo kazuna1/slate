@@ -67,6 +67,7 @@ public partial class MainWindow : Window
 
     // Completion: Tab/Shift+Tab cycle through matches for the last word; ghost text previews the first.
     private readonly Projects _projects = new();
+    private readonly GitHubRepos _github = new();
     private readonly Completer _completer;
     private bool _dismissedShellFlyout;
     private IReadOnlyList<string> _cycle = Array.Empty<string>();
@@ -195,6 +196,7 @@ public partial class MainWindow : Window
         _dismissedShellFlyout = false;
         _previousForeground = Native.GetForegroundWindow();
         _completer.Refresh(_config);
+        _github.RefreshIfStale();
 
         // Detach from the desktop first; activating a desktop-owned window would drag the desktop forward.
         Native.SetExStyle(_hwnd, 0, Native.WS_EX_NOACTIVATE);
@@ -359,12 +361,20 @@ public partial class MainWindow : Window
         return true;
     }
 
+    /// <summary>GitHub repo names after "git clone " / "gc ", folder names everywhere else.</summary>
+    private IReadOnlyList<string> Completions(string token)
+    {
+        var words = Input.Text.Split(' ');
+        bool cloning = (words.Length == 2 && words[0] == "gc") || (words.Length == 3 && words[0] == "git" && words[1] == "clone");
+        return cloning ? _github.Completions(token) : _completer.Match(token);
+    }
+
     private void CycleCompletion(int direction)
     {
         if (_cycleIndex < 0)
         {
             if (!TryGetToken(out _tokenStart, out string token)) return;
-            _cycle = _completer.Match(token.Trim('\''));
+            _cycle = Completions(token.Trim('\''));
             if (_cycle.Count == 0) return;
             _cycleIndex = direction > 0 ? 0 : _cycle.Count - 1;
         }
@@ -403,7 +413,7 @@ public partial class MainWindow : Window
         string token = string.Empty;
         if (_cycleIndex < 0 && TryGetToken(out _, out token) && token.Length > 0)
         {
-            string? match = _completer.Match(token).FirstOrDefault();
+            string? match = Completions(token).FirstOrDefault();
             // Only names that need no quoting can be previewed as a plain suffix.
             if (match != null && match.Length > token.Length
                 && match.StartsWith(token, StringComparison.OrdinalIgnoreCase)
@@ -556,6 +566,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        // "git clone ladder" / "gc ladder": find the repo on GitHub and clone it into the default folder.
+        if (CloneTarget(text) is string repo)
+        {
+            _history.Add(text);
+            Native.AllowSetForegroundWindow(Native.ASFW_ANY);
+            PlayRunFlash();
+            Input.Clear();
+            Dismiss(DismissReason.Ran);
+            Clone(repo);
+            return;
+        }
+
         // Built-in shortcut ("cc slate", "vs new airlink"): find the folder, run the command inside it.
         string command = text;
         string? folder = null;
@@ -606,6 +628,68 @@ public partial class MainWindow : Window
         Input.Clear();
         Dismiss(DismissReason.Ran);
     }
+
+    // ---------------------------------------------------------------------
+    // GitHub clone
+    // ---------------------------------------------------------------------
+
+    /// <summary>The repo in "git clone &lt;name&gt;" or "gc &lt;name&gt;", if it isn't already a URL or path.</summary>
+    internal static string? CloneTarget(string text)
+    {
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string target;
+        if (words.Length == 2 && words[0] == "gc") target = words[1];
+        else if (words.Length == 3 && words[0] == "git" && words[1] == "clone") target = words[2];
+        else return null;
+        bool urlOrPath = target.Contains("://") || target.Contains('@') || target.EndsWith(".git")
+                         || target.StartsWith('.') || target.StartsWith('~') || target.Contains('\\') || target.Contains(':');
+        return urlOrPath ? null : target;
+    }
+
+    private void Clone(string query)
+    {
+        var config = _config;
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            IReadOnlyList<string>? matches = null;
+            string? error = null;
+            try { matches = _github.Find(query); }
+            catch (Exception ex) { error = ex.Message; }
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (error != null) Notify?.Invoke("Slate", error);
+                else if (matches!.Count == 0) Notify?.Invoke("Slate", $"None of your GitHub repos is called \"{query}\".");
+                else if (matches.Count > 1)
+                    Notify?.Invoke($"Several repos match \"{query}\"",
+                        string.Join(", ", matches.Take(4)) + (matches.Count > 4 ? ", …" : "") + ". Type git clone owner/name.");
+                else RunClone(matches[0], config);
+            });
+        });
+    }
+
+    /// <summary>Clones into the default folder in a terminal (so progress and errors are visible) and stays in the new repo.</summary>
+    private void RunClone(string repo, SlateConfig config)
+    {
+        string name = repo[(repo.LastIndexOf('/') + 1)..];
+        string baseDir = CommandRunner.ResolveWorkingDirectory(config.WorkingDirectory);
+        _projects.Visited(System.IO.Path.Combine(baseDir, name), config); // so "cc <name>" works right after
+        string quotedRepo = "'" + repo.Replace("'", "''") + "'";
+        string quotedName = "'" + name.Replace("'", "''") + "'";
+        try
+        {
+            CommandRunner.Run($"gh repo clone {quotedRepo}; if ($LASTEXITCODE -eq 0) {{ Set-Location {quotedName} }}", config, null,
+                error => Dispatcher.BeginInvoke(() => Notify?.Invoke("Slate", error)));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Cloning {repo}", ex);
+            Notify?.Invoke("Slate couldn't start the terminal", ex.Message);
+        }
+    }
+
+    /// <summary>A folder for ":cd &lt;name&gt;": a project found the way "cc &lt;name&gt;" finds one.</summary>
+    internal string? ResolveFolder(string query) => _projects.Resolve(query, _config);
 
     private void UpdatePlaceholder() =>
         Placeholder.Visibility = Input.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -673,7 +757,8 @@ public partial class MainWindow : Window
         UpdateGhost();
         QueueOverlay();
 
-        Placeholder.Text = a.Placeholder;
+        // The placeholder also says where commands run: "run anything...  ·  ~\\code".
+        Placeholder.Text = $"{a.Placeholder}  ·  {CommandRunner.Abbreviate(CommandRunner.ResolveWorkingDirectory(config.WorkingDirectory))}";
         Placeholder.FontFamily = font;
         Placeholder.FontSize = fontSize;
         Placeholder.Foreground = Theme.Solid(a.PlaceholderColor, Colors.Gray);

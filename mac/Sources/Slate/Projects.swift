@@ -79,6 +79,9 @@ final class Projects {
         var result = used
         if config.useZoxide { result += Zoxide.list() }
         for root in config.projectRoots { result += Self.subfolders(of: root) }
+        // Projects in the default folder count too (not when it's home: that's Desktop, Documents, ...).
+        let base = CommandRunner.workingDirectory(config.workingDirectory)
+        if base != NSHomeDirectory() { result += Self.subfolders(of: base) }
         result += repos
         // Folders that hold repos ("new airlink" holding "ndc") are often what people type.
         result += repos.map { ($0 as NSString).deletingLastPathComponent }.filter { $0 != NSHomeDirectory() && $0 != "/" }

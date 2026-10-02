@@ -17,6 +17,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private(set) var config: SlateConfig
     private let history: History
     private let projects = Projects()
+    private let github = GitHubRepos()
     private lazy var completer = Completer(projects: projects)
 
     var onBuiltin: ((String) -> Void)?
@@ -58,6 +59,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
         apply(config, hotkeyDisplay: hotkeyDisplay)
         completer.refresh(config)
+        github.refreshIfStale()
     }
 
     func show() {
@@ -79,6 +81,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         focusAttempts = 0
         previousApp = NSWorkspace.shared.frontmostApplication
         completer.refresh(config)
+        github.refreshIfStale()
 
         panel.level = .floating
         panel.orderFrontRegardless()
@@ -300,6 +303,16 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             return
         }
 
+        // "git clone ladder" / "gc ladder": find the repo on GitHub and clone it into the default folder.
+        if let repo = Self.cloneTarget(text) {
+            history.add(text)
+            playRunFlash()
+            setInput("")
+            dismiss(.ran)
+            clone(repo)
+            return
+        }
+
         // Built-in shortcut ("cc slate", "vs new airlink"): find the folder, run the command inside it.
         var command = text
         var folder: String?
@@ -341,6 +354,60 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         dismiss(.ran)
     }
 
+    // MARK: GitHub clone
+
+    /// The repo in "git clone <name>" or "gc <name>", if it isn't already a URL or path.
+    static func cloneTarget(_ text: String) -> String? {
+        let words = text.split(separator: " ").map(String.init)
+        let target: String
+        if words.count == 2, words[0] == "gc" { target = words[1] }
+        else if words.count == 3, words[0] == "git", words[1] == "clone" { target = words[2] }
+        else { return nil }
+        let isURLOrPath = target.contains("://") || target.contains("@") || target.hasSuffix(".git")
+            || target.hasPrefix("/") || target.hasPrefix("~") || target.hasPrefix(".")
+        return isURLOrPath ? nil : target
+    }
+
+    private func clone(_ query: String) {
+        let config = self.config
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try self.github.find(query) }
+            DispatchQueue.main.async {
+                switch result {
+                case .failure(let error):
+                    self.notify?("Slate", error.localizedDescription)
+                case .success(let matches) where matches.isEmpty:
+                    self.notify?("Slate", "None of your GitHub repos is called \"\(query)\".")
+                case .success(let matches) where matches.count > 1:
+                    let list = matches.prefix(4).joined(separator: ", ") + (matches.count > 4 ? ", …" : "")
+                    self.notify?("Several repos match \"\(query)\"", "\(list). Type git clone owner/name.")
+                case .success(let matches):
+                    self.runClone(matches[0], config: config)
+                }
+            }
+        }
+    }
+
+    /// Clones into the default folder in a terminal (so progress and errors are visible) and stays in the new repo.
+    private func runClone(_ repo: String, config: SlateConfig) {
+        let name = String(repo.split(separator: "/").last ?? Substring(repo))
+        let gh = GitHubRepos.ghPath.map(shellQuote) ?? "gh"
+        let base = CommandRunner.workingDirectory(config.workingDirectory)
+        projects.visited((base as NSString).appendingPathComponent(name), config: config) // so "cc \(name)" works right after
+        do {
+            try CommandRunner.run("\(gh) repo clone \(shellQuote(repo)) && cd \(shellQuote(name))", config: config) { [weak self] error in
+                self?.notify?("Slate", error)
+            }
+        } catch {
+            notify?("Slate couldn't start the terminal", error.localizedDescription)
+        }
+    }
+
+    /// A folder for ":cd <name>": a path, or a project found like "cc <name>" finds one.
+    func resolveFolder(_ query: String) -> String? {
+        projects.resolve(query, config: config)
+    }
+
     private var caretAtEnd: Bool {
         guard let editor = view.input.currentEditor() else { return true }
         let r = editor.selectedRange
@@ -378,11 +445,18 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         return (start, text.substring(from: start))
     }
 
+    /// GitHub repo names after "git clone " / "gc ", folder names everywhere else.
+    private func completions(_ token: String) -> [String] {
+        let words = view.input.stringValue.split(separator: " ", omittingEmptySubsequences: false)
+        let cloning = (words.count == 2 && words[0] == "gc") || (words.count == 3 && words[0] == "git" && words[1] == "clone")
+        return cloning ? github.completions(token) : completer.match(token)
+    }
+
     private func cycleCompletion(_ direction: Int) {
         if cycleIndex < 0 {
             guard let (start, token) = currentToken() else { return }
             tokenStart = start
-            cycle = completer.match(token.trimmingCharacters(in: CharacterSet(charactersIn: "'")))
+            cycle = completions(token.trimmingCharacters(in: CharacterSet(charactersIn: "'")))
             guard !cycle.isEmpty else { return }
             cycleIndex = direction > 0 ? 0 : cycle.count - 1
         } else {
@@ -408,7 +482,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         ghostMatch = nil
         var suffix = ""
         if cycleIndex < 0, let (_, token) = currentToken(), !token.isEmpty,
-           let match = completer.match(token).first,
+           let match = completions(token).first,
            match.count > token.count, match.lowercased().hasPrefix(token.lowercased()),
            shellQuote(match) == match { // only names that need no quoting preview as a plain suffix
             ghostMatch = match
@@ -460,8 +534,13 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
         view.input.font = font
         view.input.textColor = .hex(a.textColor, fallback: .white)
-        view.input.placeholderAttributedString = NSAttributedString(
+        // The placeholder also says where commands run: "run anything...  ·  ~/projects".
+        let placeholder = NSMutableAttributedString(
             string: a.placeholder, attributes: [.font: font, .foregroundColor: placeholderColor])
+        placeholder.append(NSAttributedString(
+            string: "  ·  " + abbreviatePath(CommandRunner.workingDirectory(config.workingDirectory)),
+            attributes: [.font: font, .foregroundColor: placeholderColor.withAlphaComponent(0.55)]))
+        view.input.placeholderAttributedString = placeholder
         styleFieldEditor()
 
         view.ghost.font = font

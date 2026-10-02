@@ -78,7 +78,8 @@ public partial class App : Application
         _bar.Show();
 
         _tray = new TrayIcon(() => _bar.Summon(), OpenConfig, Reload, () => _ = UpdateNowAsync(), Quit,
-            () => _config.Theme, ApplyTheme);
+            () => _config.Theme, ApplyTheme,
+            () => CommandRunner.Abbreviate(CommandRunner.ResolveWorkingDirectory(_config.WorkingDirectory)), ChooseDefaultFolder);
 
         try
         {
@@ -94,7 +95,9 @@ public partial class App : Application
         _store.Changed += () => Dispatcher.BeginInvoke(Reload);
 
         if (_store.CreatedNew)
-            Notify("Slate is running", $"Press {hotkey.Display} anywhere to summon the bar. Right-click the tray icon for options.");
+            Notify("Slate is running", $"Press {hotkey.Display} anywhere. Commands run in your home folder: click here to choose a different one.",
+                ChooseDefaultFolder);
+        CheckDefaultFolder();
         if (configError != null) Notify("Slate: config.json has an error", configError + "\nUsing defaults.");
         if (hotkeyError != null) Notify("Slate: bad hotkey", hotkeyError);
 
@@ -236,13 +239,15 @@ public partial class App : Application
         if (_history != null) _history.MaxSize = Math.Max(1, config.HistorySize);
 
         _bar.ApplyConfig(config, hotkey.Display);
+        CheckDefaultFolder();
     }
 
     private void HandleBuiltin(string text)
     {
         var parts = text[1..].Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         string cmd = parts.Length > 0 ? parts[0].ToLowerInvariant() : string.Empty;
-        string arg = parts.Length > 1 ? parts[1].ToLowerInvariant() : string.Empty;
+        string rawArg = parts.Length > 1 ? parts[1] : string.Empty;
+        string arg = rawArg.ToLowerInvariant();
 
         switch (cmd)
         {
@@ -268,16 +273,77 @@ public partial class App : Application
             case "update":
                 _ = UpdateNowAsync();
                 return;
+            case "cd":
+                ChangeDirectory(rawArg);
+                return;
             case "version":
                 Notify("Slate", $"Version {Updater.CurrentVersion.ToString(3)}");
                 return;
             case "help":
-                Notify("Slate commands", ":config  :reload  :update  :version  :autostart on|off  :history clear  :exit");
+                Notify("Slate commands", ":cd <folder>  :config  :reload  :update  :version  :autostart on|off  :history clear  :exit");
                 return;
             default:
                 Notify("Slate", $"Unknown command \"{text}\". Try :help");
                 return;
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // Default folder
+    // ---------------------------------------------------------------------
+
+    private string? _warnedMissingFolder;
+
+    /// <summary>Folder picker for where commands run, clones go, and which subfolders count as projects.</summary>
+    private void ChooseDefaultFolder()
+    {
+        using var dialog = new System.Windows.Forms.FolderBrowserDialog
+        {
+            Description = "Default folder for Slate: commands run here, \"git clone <name>\" clones here, and its folders become projects.",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = true,
+            InitialDirectory = CommandRunner.ResolveWorkingDirectory(_config.WorkingDirectory),
+        };
+        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK) SetDefaultFolder(dialog.SelectedPath);
+    }
+
+    private void SetDefaultFolder(string path)
+    {
+        _config.WorkingDirectory = path;
+        _store?.Save(_config);
+        Reload();
+        Notify("Slate", $"Commands now run in {CommandRunner.Abbreviate(path)}.");
+    }
+
+    /// <summary>":cd" shows the default folder; ":cd &lt;path or project&gt;" sets it; ":cd ~" / "home" / "." resets it.</summary>
+    private void ChangeDirectory(string arg)
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (arg.Length == 0)
+        {
+            Notify("Default folder", $"{CommandRunner.Abbreviate(CommandRunner.ResolveWorkingDirectory(_config.WorkingDirectory))}. Change it with :cd <folder>, or from the tray menu.");
+            return;
+        }
+        if (arg is "~" or "." || arg.Equals("home", StringComparison.OrdinalIgnoreCase))
+        {
+            SetDefaultFolder(home);
+            return;
+        }
+        string expanded = Environment.ExpandEnvironmentVariables(arg.Trim('"', '\''));
+        if (expanded.StartsWith('~')) expanded = home + expanded[1..];
+        if (System.IO.Path.IsPathRooted(expanded) && System.IO.Directory.Exists(expanded)) SetDefaultFolder(expanded);
+        else if (_bar?.ResolveFolder(arg) is string found) SetDefaultFolder(found);
+        else Notify("Slate", $"No folder matches \"{arg}\".");
+    }
+
+    /// <summary>Says once (per folder) when the saved default folder is gone, instead of failing silently.</summary>
+    private void CheckDefaultFolder()
+    {
+        string setting = _config.WorkingDirectory;
+        if (CommandRunner.DefaultFolderExists(setting) || _warnedMissingFolder == setting) return;
+        _warnedMissingFolder = setting;
+        Notify("Default folder not found", $"{setting} is missing, so commands run in your home folder. Click to choose another.",
+            ChooseDefaultFolder);
     }
 
     private void OpenConfig()
