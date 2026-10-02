@@ -78,7 +78,7 @@ macOS 13 or later, Apple Silicon and Intel.
 | Type | Does |
 |---|---|
 | `cc slate` | Claude Code in your `slate` folder |
-| `vc slate` | VS Code in it |
+| `vs slate` | VS Code in it |
 | `z slate` | A terminal in it |
 | `cc slate -r` | Options pass through: here, `claude -r` in `slate` |
 

@@ -31,7 +31,7 @@ public sealed class SlateConfig
     {
         ["z"] = "",
         ["cc"] = "claude",
-        ["vc"] = "code .",
+        ["vs"] = "code .",
     };
 
     /// <summary>Tab-completion source: folders zoxide knows about (ranked by how often you use them).</summary>

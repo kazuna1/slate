@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -98,19 +99,38 @@ internal sealed class UpdateWindow : Window
 
     private async Task RunAsync()
     {
+        // Speed averaged over the last ~2 s so the number doesn't jump around; text refreshed 4× a second.
+        var clock = Stopwatch.StartNew();
+        var samples = new Queue<(double Time, long Read)>();
+        double lastText = -1;
+
         var progress = new Progress<(long Read, long? Total)>(p =>
         {
-            double mb = p.Read / 1048576.0;
+            double now = clock.Elapsed.TotalSeconds;
+            samples.Enqueue((now, p.Read));
+            while (samples.Count > 2 && now - samples.Peek().Time > 2) samples.Dequeue();
+
             if (p.Total is long total && total > 0)
             {
                 _bar.IsIndeterminate = false;
                 _bar.Value = (double)p.Read / total;
-                _status.Text = $"Downloading… {mb:F1} / {total / 1048576.0:F1} MB  ({100.0 * p.Read / total:F0}%)";
             }
-            else
+            if (now - lastText < 0.25 && p.Read != p.Total) return;
+            lastText = now;
+
+            var first = samples.Peek();
+            double span = now - first.Time;
+            double speed = span > 0.2 ? (p.Read - first.Read) / span : 0; // bytes/s
+
+            string text = $"{p.Read / 1048576.0:F1}";
+            if (p.Total is long t && t > 0) text += $" / {t / 1048576.0:F1} MB  ·  {100.0 * p.Read / t:F0}%";
+            else text += " MB";
+            if (speed > 0)
             {
-                _status.Text = $"Downloading… {mb:F1} MB";
+                text += $"  ·  {FormatSpeed(speed)}";
+                if (p.Total is long t2 && t2 > p.Read) text += $"  ·  {FormatTime((t2 - p.Read) / speed)} left";
             }
+            _status.Text = text;
         });
 
         try
@@ -142,6 +162,12 @@ internal sealed class UpdateWindow : Window
         }
         Finish();
     }
+
+    private static string FormatSpeed(double bytesPerSecond) =>
+        bytesPerSecond >= 1048576 ? $"{bytesPerSecond / 1048576:F1} MB/s" : $"{bytesPerSecond / 1024:F0} KB/s";
+
+    private static string FormatTime(double seconds) =>
+        seconds < 60 ? $"{Math.Ceiling(seconds):F0} s" : $"{(int)(seconds / 60)} min {(int)(seconds % 60)} s";
 
     /// <summary>Exits; if the installer didn't take over, brings the current Slate back.</summary>
     private void Finish()

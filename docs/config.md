@@ -15,7 +15,7 @@ Comments (`//`) and trailing commas are allowed.
   "shortcuts": {                  // "<key> <folder>": find the folder, run the command in it
     "z": "",                      //   z slate   → terminal in the slate folder
     "cc": "claude",               //   cc slate  → Claude Code in it
-    "vc": "code ."                //   vc slate  → VS Code in it
+    "vs": "code ."                //   vs slate  → VS Code in it
   },
   "useZoxide": true,              // use zoxide's ranking too, when it's installed
   "projectRoots": [],             // also treat subfolders of these as projects, e.g. ["D:\\code"]
@@ -71,7 +71,7 @@ Logs go to `%APPDATA%\Slate\slate.log`.
 
 ## Shortcuts
 
-`cc slate`, `vc slate` and `z slate` work on any PC or Mac with no setup. Slate finds the folder itself:
+`cc slate`, `vs slate` and `z slate` work on any PC or Mac with no setup. Slate finds the folder itself:
 
 1. A full path, if you type one.
 2. [zoxide](https://github.com/ajeetdsouza/zoxide), if installed (best ranking, learns from every `cd`).
@@ -81,18 +81,20 @@ Logs go to `%APPDATA%\Slate\slate.log`.
    every other fixed drive (on Windows) in the background at most every 6 hours, and keeps the list in `projects.json`.
 
 Options after the folder name go to the command: `cc slate -r` runs `claude -r` in `slate`,
-`cc slate -c` continues the last conversation, `vc slate --new-window` opens a new VS Code window,
+`cc slate -c` continues the last conversation, `vs slate --new-window` opens a new VS Code window,
 and `cc -c` (no folder) works too. Anything from the first ` -` on counts as options.
 
 Within each source, an exact folder name beats a prefix, which beats a partial match. Multi-word names work:
-`vc new airlink`. Add your own: `"gh": "gh repo view --web"` makes `gh slate` open its GitHub page.
-On macOS the default `vc` is `open -a 'Visual Studio Code' .`, which works without VS Code's `code` command.
+`vs new airlink`. Add your own: `"gh": "gh repo view --web"` makes `gh slate` open its GitHub page.
+On macOS the default `vs` is `open -a 'Visual Studio Code' .`, which works without VS Code's `code` command.
 
 Shortcuts take priority over functions with the same name in your shell profile.
 
 ## Themes
 
-**Themes** in the tray / menu-bar menu applies a ready-made look by rewriting the `appearance` colors in your config.
+**Themes** in the tray / menu-bar menu applies a ready-made look by rewriting the `appearance` colors in your config:
+**Violet** (the original), **Dark** and **Light**. Preview one without applying it:
+`Slate.exe --render-preview out.png "vs slate" Light` (Windows).
 Themes are defined in `windows/src/Slate/Themes.cs` (Windows) and `mac/Sources/Slate/Themes.swift` (macOS); add one entry to each list.
 
 ## Built-in commands

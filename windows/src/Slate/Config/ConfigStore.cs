@@ -60,7 +60,9 @@ internal sealed class ConfigStore : IDisposable
             try
             {
                 var json = File.ReadAllText(FilePath);
-                return JsonSerializer.Deserialize<SlateConfig>(json, Options) ?? new SlateConfig();
+                var config = JsonSerializer.Deserialize<SlateConfig>(json, Options) ?? new SlateConfig();
+                if (Migrate(config)) Save(config);
+                return config;
             }
             catch (IOException) when (attempt < 3)
             {
@@ -72,6 +74,18 @@ internal sealed class ConfigStore : IDisposable
                 return null;
             }
         }
+    }
+
+    /// <summary>Upgrades settings saved by older versions. Returns true if anything changed.</summary>
+    private static bool Migrate(SlateConfig config)
+    {
+        // 1.3.4: the VS Code shortcut was renamed from "vc" to "vs".
+        if (config.Shortcuts.Remove("vc", out var vsCode))
+        {
+            config.Shortcuts.TryAdd("vs", vsCode);
+            return true;
+        }
+        return false;
     }
 
     public void Save(SlateConfig config)

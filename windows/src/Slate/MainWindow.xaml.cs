@@ -556,7 +556,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Built-in shortcut ("cc slate", "vc new airlink"): find the folder, run the command inside it.
+        // Built-in shortcut ("cc slate", "vs new airlink"): find the folder, run the command inside it.
         string command = text;
         string? folder = null;
         int space = text.IndexOf(' ');

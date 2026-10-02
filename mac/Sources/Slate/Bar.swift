@@ -300,7 +300,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             return
         }
 
-        // Built-in shortcut ("cc slate", "vc new airlink"): find the folder, run the command inside it.
+        // Built-in shortcut ("cc slate", "vs new airlink"): find the folder, run the command inside it.
         var command = text
         var folder: String?
         let parts = text.split(separator: " ", maxSplits: 1).map(String.init)

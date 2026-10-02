@@ -35,7 +35,8 @@ public partial class App : Application
 
         if (e.Args.Length >= 2 && e.Args[0] == "--render-preview")
         {
-            RenderPreview(e.Args[1], e.Args.Length >= 3 ? e.Args[2] : "cc animu");
+            // Slate.exe --render-preview out.png ["text"] [theme]
+            RenderPreview(e.Args[1], e.Args.Length >= 3 ? e.Args[2] : "cc animu", e.Args.Length >= 4 ? e.Args[3] : null);
             return;
         }
 
@@ -175,12 +176,14 @@ public partial class App : Application
     }
 
     /// <summary>Writes a PNG of the bar using the current config, then exits. Doesn't touch a running instance.</summary>
-    private void RenderPreview(string path, string text)
+    private void RenderPreview(string path, string text, string? theme)
     {
         int exitCode = 0;
         try
         {
             var config = new ConfigStore().TryLoad(out _) ?? new SlateConfig();
+            foreach (var t in Themes.All)
+                if (t.Name.Equals(theme, StringComparison.OrdinalIgnoreCase)) t.Apply(config.Appearance);
             var hotkey = ParseHotkey(config.Hotkey, out _);
             var window = new MainWindow(config, new History(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "slate-preview-history.txt"), 1), hotkey.Display);
             window.RenderPreview(System.IO.Path.GetFullPath(path), text, System.Windows.Media.Color.FromRgb(0x0C, 0x0A, 0x14));

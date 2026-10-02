@@ -15,10 +15,40 @@ internal static class Themes
     /// </summary>
     public static readonly IReadOnlyList<SlateTheme> All = new SlateTheme[]
     {
-        // new("Midnight", a =>
-        // {
-        //     a.Background = ["#0F172A", "#020617"];
-        //     a.GlowColor = "#38BDF8";
-        // }),
+        // The original look; picking it restores the defaults.
+        new("Violet", a =>
+        {
+            var d = new AppearanceConfig();
+            a.Background = d.Background;
+            a.BorderColor = d.BorderColor;
+            a.BorderHighlight = d.BorderHighlight;
+            a.GlowColor = d.GlowColor;
+            a.GlowOpacity = d.GlowOpacity;
+            a.TextColor = d.TextColor;
+            a.PlaceholderColor = d.PlaceholderColor;
+            a.PromptColor = d.PromptColor;
+        }),
+        new("Dark", a =>
+        {
+            a.Background = ["#1C1C1F", "#111113", "#09090B"];
+            a.BorderColor = "#3F3F46";
+            a.BorderHighlight = "#D4D4D8";
+            a.GlowColor = "#000000";
+            a.GlowOpacity = 0.75;
+            a.TextColor = "#FAFAFA";
+            a.PlaceholderColor = "#71717A";
+            a.PromptColor = "#E4E4E7";
+        }),
+        new("Light", a =>
+        {
+            a.Background = ["#FFFFFF", "#F7F7F8", "#F0F0F2"];
+            a.BorderColor = "#D4D4D8";
+            a.BorderHighlight = "#71717A";
+            a.GlowColor = "#000000";
+            a.GlowOpacity = 0.22;
+            a.TextColor = "#18181B";
+            a.PlaceholderColor = "#8A8A93";
+            a.PromptColor = "#3F3F46";
+        }),
     };
 }
