@@ -299,6 +299,10 @@ internal static class Native
     {
         if (GetForegroundWindow() == hWnd) return true;
 
+        // 0) A harmless synthetic key makes this process the last input source, which Windows
+        //    requires before it lets SetForegroundWindow succeed (needed when the desktop has focus).
+        TapKey(VK_MASK);
+
         // 1) Attach to the current foreground thread's input queue, then switch.
         IntPtr fg = GetForegroundWindow();
         uint fgThread = fg == IntPtr.Zero ? 0 : GetWindowThreadProcessId(fg, out _);

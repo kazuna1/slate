@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Slate;
@@ -54,28 +55,48 @@ internal static class Updater
     }
 
     /// <summary>
-    /// Downloads and verifies the installer, then starts it silently. The installer closes Slate,
-    /// replaces it, and relaunches it (the /RELAUNCH=1 switch). The caller should exit right after.
+    /// Hands the update to a separate Slate process (<c>--update</c>) that shows download progress,
+    /// so the running Slate can quit right away. The caller should exit right after.
     /// </summary>
-    public static async Task DownloadAndRunAsync(UpdateInfo update)
+    public static void StartUpdater(UpdateInfo update)
     {
-        string path = await DownloadAsync(update, Path.GetTempPath());
+        var psi = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+        psi.ArgumentList.Add("--update");
+        psi.ArgumentList.Add(update.Version.ToString(3));
+        psi.ArgumentList.Add(update.InstallerUrl);
+        psi.ArgumentList.Add(update.Sha256 ?? "-");
+        Process.Start(psi)?.Dispose();
+    }
+
+    /// <summary>Starts the downloaded installer silently; it closes Slate, replaces it and relaunches it (/RELAUNCH=1).</summary>
+    public static void RunInstaller(string path) =>
         Process.Start(new ProcessStartInfo(path, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /RELAUNCH=1")
         {
             UseShellExecute = true,
         })?.Dispose();
-    }
 
     /// <summary>Downloads the installer into <paramref name="directory"/> and checks its SHA-256. Returns its path.</summary>
-    public static async Task<string> DownloadAsync(UpdateInfo update, string directory)
+    /// <param name="progress">Bytes downloaded so far and the total size (null if the server didn't say).</param>
+    public static async Task<string> DownloadAsync(UpdateInfo update, string directory,
+        IProgress<(long Read, long? Total)>? progress = null, CancellationToken cancel = default)
     {
         string path = Path.Combine(directory, $"SlateSetup-{update.Version}.exe");
 
-        using (var response = await Http.GetAsync(update.InstallerUrl, HttpCompletionOption.ResponseHeadersRead))
+        using (var response = await Http.GetAsync(update.InstallerUrl, HttpCompletionOption.ResponseHeadersRead, cancel))
         {
             response.EnsureSuccessStatusCode();
+            long? total = response.Content.Headers.ContentLength;
+            await using var source = await response.Content.ReadAsStreamAsync(cancel);
             await using var file = File.Create(path);
-            await response.Content.CopyToAsync(file);
+            var buffer = new byte[81920];
+            long read = 0;
+            int n;
+            while ((n = await source.ReadAsync(buffer, cancel)) > 0)
+            {
+                await file.WriteAsync(buffer.AsMemory(0, n), cancel);
+                read += n;
+                progress?.Report((read, total));
+            }
         }
 
         if (update.Sha256 != null)

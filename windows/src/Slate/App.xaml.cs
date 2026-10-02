@@ -39,6 +39,14 @@ public partial class App : Application
             return;
         }
 
+        // Slate.exe --update <version> <installer-url> <sha256|->: the progress window started by the updater.
+        if (e.Args.Length >= 4 && e.Args[0] == "--update")
+        {
+            var info = new UpdateInfo(Version.Parse(e.Args[1]), e.Args[2], e.Args[3] == "-" ? null : e.Args[3], string.Empty);
+            new UpdateWindow(info).Show();
+            return;
+        }
+
         _singleInstance = new Mutex(true, @"Local\Slate.SingleInstance", out bool isFirst);
         if (!isFirst)
         {
@@ -151,15 +159,15 @@ public partial class App : Application
         }
 
         _updating = true;
-        Notify("Updating Slate", $"Downloading {_update.Version.ToString(3)}... Slate will restart by itself.");
         try
         {
-            await Updater.DownloadAndRunAsync(_update);
-            Quit(); // the installer replaces the exe and relaunches it
+            // A separate Slate process shows the download; this one gets out of the way immediately.
+            Updater.StartUpdater(_update);
+            Quit();
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or InvalidDataException or Win32Exception)
+        catch (Win32Exception ex)
         {
-            Log.Error("Installing update", ex);
+            Log.Error("Starting updater", ex);
             Notify("Slate update failed", ex.Message);
             _updating = false;
         }

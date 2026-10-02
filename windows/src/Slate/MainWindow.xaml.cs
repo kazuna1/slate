@@ -33,7 +33,13 @@ public partial class MainWindow : Window
 {
     private static readonly Color Violet = Color.FromRgb(0x8B, 0x5C, 0xF6);
     private const double IdleGlowLevel = 0.55;
-    private const int MaxFocusAttempts = 5;
+    // Up to ~1 s: shell panels (Start, Search, tray overflow) take a few hundred ms to close.
+    private const int MaxFocusAttempts = 15;
+    private static readonly string[] ShellFlyouts =
+    {
+        "Windows.UI.Core.CoreWindow", "TopLevelWindowForOverflowXamlIsland", "XamlExplorerHostIslandWindow",
+        "Shell_TrayWnd", "Shell_SecondaryTrayWnd",
+    };
 
     private readonly History _history;
     private SlateConfig _config;
@@ -234,16 +240,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Start menu, Search and the notification panel (all "CoreWindow") refuse to give up focus.
-        // Close it with Esc first, the same as the user would, then take focus.
-        if (!_dismissedShellFlyout && Native.GetClassName(Native.GetForegroundWindow()) == "Windows.UI.Core.CoreWindow")
+        // Start menu, Search, the tray overflow and other shell panels refuse to give up focus.
+        // Close them with Esc first, the same as the user would, then take focus.
+        if (!_dismissedShellFlyout && Array.IndexOf(ShellFlyouts, Native.GetClassName(Native.GetForegroundWindow())) >= 0)
         {
             _dismissedShellFlyout = true;
             Native.TapKey(Native.VK_ESCAPE);
         }
 
         TakeFocus();
-        var retry = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+        var retry = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(65) };
         retry.Tick += (_, _) =>
         {
             retry.Stop();
