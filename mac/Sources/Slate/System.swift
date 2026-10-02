@@ -4,7 +4,20 @@ import UserNotifications
 
 /// "Launch at login" through the system login-items list.
 enum LoginItem {
-    static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
+    static var status: SMAppService.Status { SMAppService.mainApp.status }
+    static var isEnabled: Bool { status == .enabled }
+
+    static var statusText: String {
+        switch status {
+        case .enabled: return "on"
+        case .requiresApproval: return "waiting for approval in System Settings → General → Login Items"
+        case .notRegistered: return "off"
+        case .notFound: return "not found"
+        @unknown default: return "unknown"
+        }
+    }
+
+    static func openSettings() { SMAppService.openSystemSettingsLoginItems() }
 
     static func set(_ enabled: Bool) throws {
         if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }

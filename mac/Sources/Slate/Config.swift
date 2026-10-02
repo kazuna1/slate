@@ -11,6 +11,8 @@ struct SlateConfig: Codable {
     var workingDirectory = "~"
     var historySize = 500
     var checkForUpdates = true
+    /// Start Slate when you log in. Kept in sync with the menu-bar toggle.
+    var launchAtLogin = true
     var useZoxide = true
     /// Tab completion also offers every subfolder of these.
     var projectRoots = ["~/projects", "~/Developer", "~/code"]

@@ -50,9 +50,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         if store.createdNew {
-            if Updater.appBundle != nil { try? LoginItem.set(true) } // recommended default, like the Windows installer
             notifier.post("Slate is running", "Press \(hotkey.display) anywhere to summon the bar. The ❯ in the menu bar has options.")
         }
+        ensureLoginItem()
         if let configError { notifier.post("Slate: config.json has an error", configError + " Using defaults.") }
         if let hotkeyError { notifier.post("Slate: bad hotkey", hotkeyError) }
 
@@ -121,7 +121,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        loginItem.state = LoginItem.isEnabled ? .on : .off
+        switch LoginItem.status {
+        case .enabled: loginItem.state = .on
+        case .requiresApproval: loginItem.state = .mixed
+        default: loginItem.state = .off
+        }
     }
 
     @objc private func menuShow() { DispatchQueue.main.async { self.bar.summon() } }
@@ -135,12 +139,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func setLoginItem(_ on: Bool) {
+        config.launchAtLogin = on
+        store.save(config)
         do {
             try LoginItem.set(on)
-            notifier.post("Slate", on ? "Slate will start when you log in." : "Slate won't start when you log in.")
         } catch {
-            notifier.post("Slate", "Couldn't change the login item: \(error.localizedDescription)")
+            Log.error("Changing login item", error)
         }
+        Log.write("Launch at login: \(LoginItem.statusText)")
+        if on && LoginItem.status == .requiresApproval {
+            askToApproveLoginItem()
+        } else if on && !LoginItem.isEnabled {
+            notifier.post("Slate", "Couldn't turn on Launch at Login (\(LoginItem.statusText)).")
+        } else {
+            notifier.post("Slate", on ? "Slate will start when you log in." : "Slate won't start when you log in.")
+        }
+    }
+
+    /// Starting at login is the point of Slate, so register on every launch until it sticks
+    /// (unless the user turned it off). Only installed copies register, not dev builds.
+    private func ensureLoginItem() {
+        guard Updater.appBundle != nil, config.launchAtLogin else { return }
+        let before = LoginItem.status
+        if before == .notRegistered || before == .notFound {
+            do { try LoginItem.set(true) } catch { Log.error("Registering login item", error) }
+        }
+        Log.write("Launch at login: \(LoginItem.statusText)")
+        if LoginItem.status == .requiresApproval && before != .requiresApproval {
+            askToApproveLoginItem()
+        }
+    }
+
+    private func askToApproveLoginItem() {
+        bar.showMessage("Allow Slate to start at login", "Click here, then switch Slate on in Login Items.",
+                        action: { LoginItem.openSettings() })
     }
 
     // MARK: Built-in commands

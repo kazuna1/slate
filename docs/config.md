@@ -85,6 +85,7 @@ The config lives in `~/Library/Application Support/Slate/config.json` and has th
 | `shell` | `"auto"` | Your login shell (`$SHELL`). Also `zsh`, `bash`, `fish` or a full path. Your `.zshrc` is loaded. |
 | `terminal` | `"Terminal"` | Any app that opens `.command` files, e.g. `"iTerm"`. Falls back to Terminal. |
 | `workingDirectory` | `"~"` | |
+| `launchAtLogin` | `true` | Start Slate when you log in. Slate re-registers itself on each start until it sticks; the menu-bar toggle updates this. |
 | `projectRoots` | `["~/projects", "~/Developer", "~/code"]` | Missing folders are skipped. |
 | `appearance.fontFamily` | `"SF Mono, Menlo"` | |
 | `appearance.monitor` | `0` | 0 = the display with the menu bar. |
