@@ -19,6 +19,26 @@ final class BarPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// Slate has no menu bar, and ⌘V / ⌘C / ⌘X / ⌘A / ⌘Z normally reach the text field through the
+    /// app's Edit menu. Without one they'd do nothing, so route them to the text field directly.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        let action: Selector?
+        switch (flags, event.charactersIgnoringModifiers?.lowercased()) {
+        case (.command, "v"): action = #selector(NSText.paste(_:))
+        case (.command, "c"): action = #selector(NSText.copy(_:))
+        case (.command, "x"): action = #selector(NSText.cut(_:))
+        case (.command, "a"): action = #selector(NSText.selectAll(_:))
+        case (.command, "z"): action = Selector(("undo:"))
+        case ([.command, .shift], "z"): action = Selector(("redo:"))
+        default: action = nil
+        }
+        if event.type == .keyDown, let action, let responder = firstResponder, responder.tryToPerform(action, with: self) {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 final class InputField: NSTextField {

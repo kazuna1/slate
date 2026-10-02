@@ -23,9 +23,15 @@ enum CommandRunner {
         try script(for: command, config: config, folder: folder).write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
 
-        if !open(url, with: config.terminal), config.terminal != "Terminal" {
-            Log.write("Couldn't open \(config.terminal); falling back to Terminal")
-            guard open(url, with: "Terminal") else { throw SlateError("Couldn't open Terminal.") }
+        // Don't wait for the terminal to start (that froze the bar); fall back to Terminal if the app is missing.
+        let terminal = config.terminal
+        try open(url, with: terminal) {
+            Log.write("Couldn't open \(terminal)")
+            guard terminal != "Terminal" else {
+                onBackgroundFailure?("Couldn't open Terminal.")
+                return
+            }
+            try? open(url, with: "Terminal") { onBackgroundFailure?("Couldn't open \(terminal) or Terminal.") }
         }
     }
 
@@ -81,18 +87,16 @@ enum CommandRunner {
         """
     }
 
-    private static func open(_ script: URL, with app: String) -> Bool {
+    /// Asks Launch Services to open the script in `app` and returns at once; `onFailure` runs on the main thread.
+    private static func open(_ script: URL, with app: String, onFailure: @escaping () -> Void) throws {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         p.arguments = ["-a", app, script.path]
         p.standardError = FileHandle.nullDevice
-        do {
-            try p.run()
-            p.waitUntilExit()
-            return p.terminationStatus == 0
-        } catch {
-            return false
+        p.terminationHandler = { proc in
+            if proc.terminationStatus != 0 { DispatchQueue.main.async(execute: onFailure) }
         }
+        try p.run()
     }
 
     private static func resolveShell(_ setting: String) -> String {

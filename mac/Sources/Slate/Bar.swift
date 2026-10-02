@@ -362,6 +362,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         guard let editor = view.input.currentEditor() as? NSTextView else { return }
         let a = config.appearance
         editor.insertionPointColor = .hex(a.promptColor, fallback: Self.violet)
+        editor.allowsUndo = true
         editor.selectedTextAttributes = [.backgroundColor: NSColor.hex(a.glowColor, fallback: Self.violet).withAlphaComponent(0.55)]
     }
 
