@@ -46,8 +46,9 @@ the other platform can get it too.
 ## Lessons
 
 - Verify every `git commit` succeeded before tagging (a failed commit once put a tag on old code).
-  It happened twice: run release steps under `set -e` (or one by one), never as a `;`-joined chain where a
-  failed `git pull`/`git commit` lets the tag step continue. Check `git rev-list -n1 vX.Y.Z` equals `HEAD` before pushing the tag.
+  It happened twice. Run release steps one by one, never as a `;`-joined chain (and `set -e` did not stop a
+  failed `git pull` in the agent shell). Before tagging, check explicitly: clean tree, `HEAD` == `origin/main`,
+  `VERSION` is the new number; after tagging, `git rev-list -n1 vX.Y.Z` == `HEAD`.
 - Windows PowerShell 5: never `Get-Content x | Set-Content x` (it emptied a file), `-Encoding utf8` adds a BOM
   (breaks `package.json`), multi-line `git commit -m` can fail silently; use `git commit -F <file>`.
 - The Windows checkout uses CRLF, so scripted edits matching `\n` miss. Prefer the Edit tool.
