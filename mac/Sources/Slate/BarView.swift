@@ -67,6 +67,9 @@ final class BarView: NSView {
     let ghost = NSTextField(labelWithString: "")
     /// Messages shown in the bar when system notifications aren't allowed.
     let message = NSTextField(labelWithString: "")
+    /// Where commands run: a small "folder" chip just left of the hotkey hint.
+    let folderBox = NSView()
+    let folder = NSTextField(labelWithString: "")
     let hintBox = NSView()
     let hint = NSTextField(labelWithString: "")
     /// Tiny version tag in the bottom-right corner, under the hotkey hint.
@@ -123,11 +126,20 @@ final class BarView: NSView {
         hintBox.layer?.borderWidth = 1
         hintBox.addSubview(hint)
 
+        folderBox.wantsLayer = true
+        folderBox.layer?.cornerRadius = 7
+        folder.isSelectable = false
+        folder.drawsBackground = false
+        folder.isBordered = false
+        folder.lineBreakMode = .byTruncatingHead
+        folderBox.addSubview(folder)
+
         addSubview(prompt)
         addSubview(ghost)
         addSubview(input)
         addSubview(message)
         addSubview(hintBox)
+        addSubview(folderBox)
         addSubview(version)
     }
 
@@ -164,6 +176,14 @@ final class BarView: NSView {
             hintBox.frame = NSRect(x: right - box.width, y: (bar.midY - box.height / 2).rounded(), width: box.width, height: box.height)
             hint.frame = NSRect(x: 9, y: 4, width: h.width, height: h.height)
             right = hintBox.frame.minX - 12
+        }
+        if !folderBox.isHidden {
+            let f = folder.fittingSize
+            let w = min(f.width, 200) // long paths are cut from the left: "…/code/slate"
+            let box = NSSize(width: w + 16, height: f.height + 8)
+            folderBox.frame = NSRect(x: right - box.width, y: (bar.midY - box.height / 2).rounded(), width: box.width, height: box.height)
+            folder.frame = NSRect(x: 8, y: 4, width: w, height: f.height)
+            right = folderBox.frame.minX - 12
         }
 
         // Version tag tucked into the bar's bottom-right corner, clear of the rounded edge.

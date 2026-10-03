@@ -757,8 +757,7 @@ public partial class MainWindow : Window
         UpdateGhost();
         QueueOverlay();
 
-        // The placeholder also says where commands run: "run anything...  ·  ~\\code".
-        Placeholder.Text = $"{a.Placeholder}  ·  {CommandRunner.Abbreviate(CommandRunner.ResolveWorkingDirectory(config.WorkingDirectory))}";
+        Placeholder.Text = a.Placeholder;
         Placeholder.FontFamily = font;
         Placeholder.FontSize = fontSize;
         Placeholder.Foreground = Theme.Solid(a.PlaceholderColor, Colors.Gray);
@@ -770,6 +769,16 @@ public partial class MainWindow : Window
         Hint.Background = new SolidColorBrush(Theme.WithAlpha(glowColor, 0.12));
         HintText.Text = string.IsNullOrWhiteSpace(a.HintText) ? _hotkeyDisplay : a.HintText;
         HintText.Foreground = new SolidColorBrush(placeholderColor);
+
+        // Folder chip: folder icon + where commands run, tinted like the prompt so it reads as live state.
+        string folder = CommandRunner.ResolveWorkingDirectory(config.WorkingDirectory);
+        var chipBrush = new SolidColorBrush(Theme.WithAlpha(promptColor, 0.85));
+        FolderChip.Visibility = a.ShowFolder ? Visibility.Visible : Visibility.Collapsed;
+        FolderChip.Background = new SolidColorBrush(Theme.WithAlpha(promptColor, 0.14));
+        FolderChip.ToolTip = folder;
+        FolderIcon.Foreground = chipBrush;
+        FolderText.Foreground = chipBrush;
+        FolderText.Text = ShortFolder(folder);
         VersionText.Visibility = a.ShowVersion ? Visibility.Visible : Visibility.Collapsed;
         VersionText.Text = $"v{Updater.CurrentVersion.ToString(3)}";
         VersionText.Foreground = new SolidColorBrush(Theme.WithAlpha(promptColor, 0.9));
@@ -778,6 +787,15 @@ public partial class MainWindow : Window
         Position();
         StartIdleAnimations();
         AnimateState(_active, pop: false);
+    }
+
+    /// <summary>"~\\code\\slate"; long paths keep their end: "…\\secpo\\slate".</summary>
+    private static string ShortFolder(string path)
+    {
+        string s = CommandRunner.Abbreviate(path);
+        if (s.Length <= 28) return s;
+        var parts = s.TrimEnd('\\').Split('\\');
+        return parts.Length >= 2 ? $"…\\{parts[^2]}\\{parts[^1]}" : s;
     }
 
     private Brush BuildBorderBrush(AppearanceConfig a)

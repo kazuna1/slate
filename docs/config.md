@@ -44,6 +44,7 @@ Comments (`//`) and trailing commas are allowed.
     "showHint": true,
     "hintText": null,             // defaults to the hotkey
     "showVersion": true,          // tiny version tag under the hint
+    "showFolder": true,           // folder chip showing where commands run
     "idleOpacity": 0.9            // opacity while sitting on the desktop
   },
 
@@ -105,7 +106,7 @@ Its subfolders also count as projects for `cc` / `vs` / `z` and Tab completion. 
   `:cd ~` (back to your home folder).
 - In the config: `"workingDirectory": "~/projects"`.
 
-The placeholder shows it: `run anything...  ·  ~/projects`. If the folder disappears (deleted, unplugged drive),
+A folder chip on the right of the bar shows it (hide it with `"appearance": { "showFolder": false }`). If the folder disappears (deleted, unplugged drive),
 Slate uses your home folder and tells you once.
 
 ## Clone by name

@@ -54,6 +54,8 @@ struct SlateConfig: Codable {
         var fontFamily = "SF Mono, Menlo"
         var fontSize: Double = 20
         var showHint = true
+        /// Folder chip showing where commands run (the default folder).
+        var showFolder = true
         /// Tiny version number under the hint.
         var showVersion = true
         /// Overrides the hint; defaults to the hotkey, e.g. "⌥ Space".

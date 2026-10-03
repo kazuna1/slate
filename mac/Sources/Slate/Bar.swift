@@ -534,13 +534,8 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
         view.input.font = font
         view.input.textColor = .hex(a.textColor, fallback: .white)
-        // The placeholder also says where commands run: "run anything...  ·  ~/projects".
-        let placeholder = NSMutableAttributedString(
+        view.input.placeholderAttributedString = NSAttributedString(
             string: a.placeholder, attributes: [.font: font, .foregroundColor: placeholderColor])
-        placeholder.append(NSAttributedString(
-            string: "  ·  " + abbreviatePath(CommandRunner.workingDirectory(config.workingDirectory)),
-            attributes: [.font: font, .foregroundColor: placeholderColor.withAlphaComponent(0.55)]))
-        view.input.placeholderAttributedString = placeholder
         styleFieldEditor()
 
         view.ghost.font = font
@@ -557,6 +552,24 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         view.version.layer?.shadowColor = glowColor.cgColor
         view.hintBox.layer?.borderColor = NSColor.hex(a.borderColor, fallback: violet).withAlphaComponent(0.45).cgColor
         view.hintBox.layer?.backgroundColor = glowColor.withAlphaComponent(0.12).cgColor
+
+        // Folder chip: folder icon + where commands run, tinted like the prompt so it reads as live state.
+        view.folderBox.isHidden = !a.showFolder
+        let chipColor = promptColor.withAlphaComponent(0.85)
+        let chip = NSMutableAttributedString()
+        if let icon = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: "Default folder")?
+            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold).applying(.init(paletteColors: [chipColor]))) {
+            let attachment = NSTextAttachment()
+            attachment.image = icon
+            attachment.bounds = CGRect(x: 0, y: -1.5, width: icon.size.width, height: icon.size.height)
+            chip.append(NSAttributedString(attachment: attachment))
+            chip.append(NSAttributedString(string: " "))
+        }
+        chip.append(NSAttributedString(string: abbreviatePath(CommandRunner.workingDirectory(config.workingDirectory)),
+                                       attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: chipColor]))
+        view.folder.attributedStringValue = chip
+        view.folder.toolTip = CommandRunner.workingDirectory(config.workingDirectory)
+        view.folderBox.layer?.backgroundColor = promptColor.withAlphaComponent(0.14).cgColor
 
         position()
         view.needsLayout = true

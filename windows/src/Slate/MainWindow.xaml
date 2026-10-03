@@ -56,15 +56,28 @@
                     <Rectangle x:Name="Caret" Width="2" RadiusX="1" RadiusY="1" Opacity="0"/>
                 </Canvas>
 
-                <Border x:Name="Hint"
-                        Grid.Column="2"
-                        VerticalAlignment="Center"
-                        Margin="12,0,0,0"
-                        Padding="9,4"
-                        CornerRadius="7"
-                        BorderThickness="1">
-                    <TextBlock x:Name="HintText" FontSize="12" FontFamily="Segoe UI"/>
-                </Border>
+                <!-- Folder chip (where commands run) and the hotkey hint, side by side on the right. -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Border x:Name="FolderChip"
+                            VerticalAlignment="Center"
+                            Margin="0,0,12,0"
+                            Padding="8,4"
+                            CornerRadius="7">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="FolderIcon" Text="&#xE8B7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,1,6,0"/>
+                            <TextBlock x:Name="FolderText" FontSize="12" FontWeight="Medium" FontFamily="Segoe UI"
+                                       VerticalAlignment="Center" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="Hint"
+                            VerticalAlignment="Center"
+                            Padding="9,4"
+                            CornerRadius="7"
+                            BorderThickness="1">
+                        <TextBlock x:Name="HintText" FontSize="12" FontFamily="Segoe UI"/>
+                    </Border>
+                </StackPanel>
 
                 <!-- Version tag tucked into the bar's bottom-right corner, with a soft glow. -->
                 <TextBlock x:Name="VersionText"
