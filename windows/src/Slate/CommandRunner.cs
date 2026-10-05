@@ -101,6 +101,9 @@ internal static class CommandRunner
         psi.ArgumentList.Add(encoded);
     }
 
+    /// <summary>The shell for the <c>shell</c> setting (also used by in-place commands).</summary>
+    public static string ShellPath(string setting) => ResolveShell(setting);
+
     private static string ResolveShell(string setting)
     {
         switch (setting.Trim().ToLowerInvariant())

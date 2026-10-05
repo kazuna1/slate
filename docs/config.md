@@ -89,6 +89,25 @@ It only triggers on an **exact** folder name that is not a real command: program
 builtins always win, so `node` or `code` keep working even if you have folders with those names (use `cc node`).
 Set `"projectCommand": ""` to turn it off, or e.g. `"projectCommand": "@code ."` to open VS Code instead.
 
+## Runs right in the bar
+
+Quick, non-interactive commands run in place: the bar shows a progress strip, then **✓** (green) or **✗** (red, click
+for the full output). A grey hint says `↵ runs here` while you type one. **Shift+Enter** always opens a terminal instead.
+
+| Type | Result |
+|---|---|
+| `clone ladder` | Progress from git, then `✓ Cloned kazuna1/ladder → ~/projects/ladder` |
+| `mkdir x`, `touch x`, `cp a b`, `mv a b` | `✓ Created …` / `✓ Copied to …` / `✓ Moved to …` (paths are relative to the default folder) |
+| `rm x` | Moves `x` to the Trash (macOS) or Recycle Bin (Windows), so a typo stays recoverable |
+| `pull slate`, `push slate`, `status slate` | git for a project by name: `slate: main · 2 changed · ahead 1` |
+| `kill :3000` | Stops whatever listens on port 3000 (`kill 3000` is still a normal kill of PID 3000) |
+| `= 24*365` | Calculator: `+ - * / % ^ ( )`; the hint shows the answer as you type; Enter copies it |
+| `node -v`, `git --version`, `which node`, `pwd`, `date`, `whoami` | The answer, copied to the clipboard |
+| `brew install x`, `npm i -g x`, `pip install x`, `winget install x` | A spinner, then ✓ or ✗ (project-local `npm install` uses a terminal) |
+| `@anything` | Runs it here and shows the last line of output |
+
+Globs (`rm *.log`) and anything interactive (`claude`, `vim`, `ssh`, servers) always get a terminal.
+
 ## Shortcuts
 
 `cc slate`, `vs slate` and `z slate` work on any PC or Mac with no setup. Slate finds the folder itself:

@@ -61,6 +61,11 @@ final class BarView: NSView {
     let sheen = CAGradientLayer()
     let background = CAGradientLayer()
     let flash = CALayer()
+    /// Thin strip along the bottom edge for in-place commands: a fill (0...1) or a sliding segment (nil).
+    let progressClip = CALayer()
+    let progressFill = CALayer()
+    private(set) var progressValue: Double?
+    private(set) var progressShown = false
 
     let prompt = NSTextField(labelWithString: "❯")
     let input = InputField()
@@ -93,6 +98,10 @@ final class BarView: NSView {
         base.addSublayer(background)
         background.masksToBounds = true
         base.addSublayer(flash)
+        progressClip.masksToBounds = true
+        progressClip.addSublayer(progressFill)
+        progressClip.isHidden = true
+        base.addSublayer(progressClip)
         flash.opacity = 0
         glow.shadowOffset = .zero
         sheen.startPoint = CGPoint(x: 0, y: 0.5)
@@ -164,6 +173,10 @@ final class BarView: NSView {
         background.cornerRadius = max(0, r - t)
         flash.frame = bar
         flash.cornerRadius = r
+        // The strip sits just inside the bottom edge, inset past the rounded corners.
+        progressClip.frame = CGRect(x: bar.minX + r * 0.6, y: bar.minY + t + 1, width: bar.width - r * 1.2, height: 2)
+        progressClip.cornerRadius = 1
+        layoutProgressFill()
         CATransaction.commit()
 
         let p = prompt.fittingSize
@@ -197,6 +210,40 @@ final class BarView: NSView {
         let mh = message.fittingSize.height
         message.frame = NSRect(x: x, y: (bar.midY - mh / 2).rounded(), width: max(40, right - x), height: mh)
         layoutGhost()
+    }
+
+    /// nil = indeterminate (a segment slides back and forth); 0...1 = filled up to that point.
+    func setProgress(_ value: Double?, shown: Bool) {
+        progressShown = shown
+        progressValue = value
+        progressClip.isHidden = !shown
+        guard shown else {
+            progressFill.removeAllAnimations()
+            return
+        }
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.2)
+        layoutProgressFill()
+        CATransaction.commit()
+    }
+
+    private func layoutProgressFill() {
+        let w = progressClip.bounds.width, h = progressClip.bounds.height
+        if let value = progressValue {
+            progressFill.removeAnimation(forKey: "slide")
+            progressFill.frame = CGRect(x: 0, y: 0, width: w * CGFloat(min(1, max(0, value))), height: h)
+        } else {
+            progressFill.frame = CGRect(x: 0, y: 0, width: w * 0.25, height: h)
+            guard progressShown, progressFill.animation(forKey: "slide") == nil else { return }
+            let slide = CABasicAnimation(keyPath: "position.x")
+            slide.fromValue = w * 0.125
+            slide.toValue = w * 0.875
+            slide.duration = 0.9
+            slide.autoreverses = true
+            slide.repeatCount = .infinity
+            slide.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            progressFill.add(slide, forKey: "slide")
+        }
     }
 
     /// The ghost (completion preview) sits right after the typed text.

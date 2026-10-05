@@ -102,7 +102,16 @@ public partial class MainWindow : Window
         SourceInitialized += OnSourceInitialized;
         Activated += (_, _) => QueueOverlay();
         Deactivated += OnDeactivated;
-        PreviewMouseLeftButtonDown += (_, _) => { if (!_active) Summon(); };
+        PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            if (_active) return;
+            if (_statusAction is { } action)
+            {
+                HideStatus(); // clicked a result: show its details instead of summoning
+                action();
+            }
+            else Summon();
+        };
         Bar.MouseLeftButtonDown += OnBarMouseDown;
         Input.PreviewKeyDown += OnInputPreviewKeyDown;
         Input.TextChanged += OnInputTextChanged;
@@ -190,6 +199,7 @@ public partial class MainWindow : Window
     public void Summon()
     {
         if (_active || _hwnd == IntPtr.Zero) return;
+        HideStatus();
 
         _active = true;
         _summonedAt = Environment.TickCount64;
@@ -297,6 +307,176 @@ public partial class MainWindow : Window
         }
 
         AnimateState(active: false, pop: false);
+
+        if (_pendingStatus is { } pending)
+        {
+            _pendingStatus = null;
+            var later = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            later.Tick += (_, _) => { later.Stop(); ShowStatus(pending.Item1, pending.Item2, pending.Item3, pending.Item4); };
+            later.Start();
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // In-place status
+    // ---------------------------------------------------------------------
+
+    internal enum StatusStyle { Running, Success, Failure }
+
+    private (string, StatusStyle, double?, Action?)? _pendingStatus;
+    private Action? _statusAction;
+    private DispatcherTimer? _statusHide;
+    private bool _statusShown;
+
+    /// <summary>
+    /// In-place command status: "◌ Cloning…" with a progress strip, then "✓ …" (green) or "✗ …" (red).
+    /// Raises the bar without taking focus; a result fades after a few seconds, a running task stays.
+    /// </summary>
+    internal void ShowStatus(string text, StatusStyle style, double? progress = null, Action? action = null)
+    {
+        if (_active)
+        {
+            _pendingStatus = (text, style, progress, action); // show once the user is done typing
+            return;
+        }
+        var a = _config.Appearance;
+        var color = style switch
+        {
+            StatusStyle.Success => Color.FromRgb(0x22, 0xC5, 0x5E),
+            StatusStyle.Failure => Color.FromRgb(0xEF, 0x44, 0x44),
+            _ => Theme.ParseColor(a.PromptColor, Violet),
+        };
+        string icon = style switch { StatusStyle.Success => "✓", StatusStyle.Failure => "✗", _ => "◌" };
+        StatusText.Inlines.Clear();
+        StatusText.Inlines.Add(new System.Windows.Documents.Run(icon + "  ") { Foreground = new SolidColorBrush(color), FontWeight = FontWeights.Bold });
+        StatusText.Inlines.Add(new System.Windows.Documents.Run(text)
+        {
+            Foreground = style == StatusStyle.Failure ? new SolidColorBrush(color) : Theme.Solid(a.TextColor, Colors.White),
+        });
+        if (action != null)
+        {
+            StatusText.Inlines.Add(new System.Windows.Documents.Run("   details ↗")
+            {
+                Foreground = Theme.Solid(a.PlaceholderColor, Colors.Gray), FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+            });
+        }
+        StatusText.Visibility = Visibility.Visible;
+        Input.Visibility = Visibility.Hidden;
+        Placeholder.Visibility = Visibility.Collapsed;
+        Ghost.Visibility = Visibility.Collapsed;
+        SetProgress(progress, style == StatusStyle.Running);
+        _statusAction = action;
+
+        if (!_statusShown)
+        {
+            _statusShown = true;
+            // Above other windows, without activating: typing elsewhere is never interrupted.
+            Native.SetOwner(_hwnd, IntPtr.Zero);
+            Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0,
+                Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+            Root.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(180)));
+        }
+
+        _statusHide?.Stop();
+        if (style == StatusStyle.Running) return;
+        _statusHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(style == StatusStyle.Failure ? 8 : 4.5) };
+        _statusHide.Tick += (_, _) => HideStatus();
+        _statusHide.Start();
+    }
+
+    private void HideStatus()
+    {
+        if (!_statusShown) return;
+        _statusShown = false;
+        _statusHide?.Stop();
+        _statusAction = null;
+        StatusText.Visibility = Visibility.Collapsed;
+        Input.Visibility = Visibility.Visible;
+        SetProgress(null, false);
+        UpdatePlaceholder();
+        if (!_active)
+        {
+            Native.SetWindowPos(_hwnd, Native.HWND_NOTOPMOST, 0, 0, 0, 0,
+                Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            Native.SetOwner(_hwnd, _desktop);
+            Native.SetWindowPos(_hwnd, Native.HWND_BOTTOM, 0, 0, 0, 0,
+                Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            AnimateState(active: false, pop: false);
+        }
+    }
+
+    /// <summary>null = indeterminate (a segment slides back and forth); 0..1 = filled up to that point.</summary>
+    private void SetProgress(double? value, bool shown)
+    {
+        ProgressTrack.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        ProgressSlide.BeginAnimation(TranslateTransform.XProperty, null);
+        ProgressSlide.X = 0;
+        if (!shown) return;
+        double width = Math.Max(1, ProgressTrack.ActualWidth > 0 ? ProgressTrack.ActualWidth : Bar.ActualWidth - 28);
+        if (value is double v)
+        {
+            ProgressFill.BeginAnimation(WidthProperty,
+                new DoubleAnimation(width * Math.Clamp(v, 0, 1), TimeSpan.FromMilliseconds(200)));
+        }
+        else
+        {
+            ProgressFill.BeginAnimation(WidthProperty, null);
+            ProgressFill.Width = width * 0.25;
+            ProgressSlide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, width * 0.75, TimeSpan.FromMilliseconds(900))
+            {
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+            });
+        }
+    }
+
+    /// <summary>Runs an in-place command: status while it works, then the result (copied if it's an answer).</summary>
+    private void RunInline(InlinePlan plan)
+    {
+        string title = plan.Title;
+        bool finished = false;
+        ShowStatus(title + "…", StatusStyle.Running);
+        Inline.Run(plan,
+            progress => Dispatcher.BeginInvoke(() =>
+            {
+                if (finished) return; // a late progress line must not undo the result
+                ShowStatus(title + "…" + (progress is double p ? $"  {(int)(p * 100)}%" : ""), StatusStyle.Running, progress);
+            }),
+            result => Dispatcher.BeginInvoke(() =>
+            {
+                finished = true;
+                string text = result.Text;
+                if (result.Ok && result.Copy != null)
+                {
+                    try
+                    {
+                        Clipboard.SetText(result.Copy);
+                        text += "  · copied";
+                    }
+                    catch (System.Runtime.InteropServices.COMException)
+                    {
+                        // clipboard busy: skip
+                    }
+                }
+                Action? details = !result.Ok && !string.IsNullOrEmpty(result.Log) ? () => OpenLog(result.Log!) : null;
+                ShowStatus(text, result.Ok ? StatusStyle.Success : StatusStyle.Failure, null, details);
+            }));
+    }
+
+    /// <summary>Shows a failed command's full output in a terminal.</summary>
+    private void OpenLog(string log)
+    {
+        try
+        {
+            string file = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"slate-output-{Guid.NewGuid().ToString()[..8]}.txt");
+            System.IO.File.WriteAllText(file, log);
+            CommandRunner.Run($"Get-Content -LiteralPath '{file.Replace("'", "''")}'", _config);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or System.ComponentModel.Win32Exception)
+        {
+            Log.Error("Showing output", ex);
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -309,7 +489,8 @@ public partial class MainWindow : Window
         {
             case Key.Enter:
                 e.Handled = true;
-                Submit();
+                // Shift+Enter: always a terminal, even for commands Slate would run in place.
+                Submit(forceTerminal: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
                 break;
             case Key.Escape:
                 e.Handled = true;
@@ -429,6 +610,12 @@ public partial class MainWindow : Window
         // Typing a project name: say what Enter will do, e.g. "   → claude -c in ~\code\slate".
         if (_ghostMatch == null && Input.CaretIndex == Input.Text.Length && ProjectLaunch(Input.Text.Trim()) is (string f, string args))
             Ghost.Text = $"   → {ProjectCommand.Build(_config.ProjectCommand, f, args)} in {CommandRunner.Abbreviate(f)}";
+        else if (_ghostMatch == null && Input.CaretIndex == Input.Text.Length
+                 && Inline.Plan(Input.Text.Trim(), _config, n => _completer.ExactFolder(n)) is InlinePlan inline)
+        {
+            // Commands Slate runs in place: say so, or show the calculator's answer right away.
+            Ghost.Text = inline.Action != null && inline.Title.StartsWith("= ") ? "   " + inline.Title : "   ↵ runs here · ⇧↵ terminal";
+        }
 
         Ghost.Visibility = Ghost.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -555,7 +742,7 @@ public partial class MainWindow : Window
         Input.CaretIndex = text.Length;
     }
 
-    private void Submit()
+    private void Submit(bool forceTerminal = false)
     {
         string text = Input.Text.Trim();
         if (text.Length == 0)
@@ -580,7 +767,18 @@ public partial class MainWindow : Window
             PlayRunFlash();
             Input.Clear();
             Dismiss(DismissReason.Ran);
-            Clone(repo);
+            Clone(repo, inline: !forceTerminal);
+            return;
+        }
+
+        // Quick, non-interactive commands run here with a ✓ / ✗ instead of opening a terminal.
+        if (!forceTerminal && ProjectLaunch(text) == null && Inline.Plan(text, _config, ResolveFolder) is InlinePlan plan)
+        {
+            _history.Add(text);
+            PlayRunFlash();
+            Input.Clear();
+            Dismiss(DismissReason.Ran);
+            RunInline(plan);
             return;
         }
 
@@ -677,7 +875,7 @@ public partial class MainWindow : Window
         return urlOrPath ? null : target;
     }
 
-    private void Clone(string query)
+    private void Clone(string query, bool inline)
     {
         var config = _config;
         System.Threading.Tasks.Task.Run(() =>
@@ -694,6 +892,13 @@ public partial class MainWindow : Window
                 else if (matches.Count > 1)
                     Notify?.Invoke($"Several repos match \"{query}\"",
                         string.Join(", ", matches.Take(4)) + (matches.Count > 4 ? ", …" : "") + ". Type git clone owner/name.");
+                else if (inline)
+                {
+                    string baseDir = CommandRunner.ResolveWorkingDirectory(config.WorkingDirectory);
+                    string name = matches[0][(matches[0].LastIndexOf('/') + 1)..];
+                    _projects.Visited(System.IO.Path.Combine(baseDir, name), config); // "cc <name>" works right after
+                    RunInline(Inline.Clone(matches[0], baseDir));
+                }
                 else RunClone(matches[0], config);
             });
         });
@@ -762,6 +967,8 @@ public partial class MainWindow : Window
         _glow.Opacity = Math.Clamp(a.GlowOpacity, 0, 1);
 
         FlashLayer.Background = Theme.Solid(a.BorderHighlight, Colors.White);
+        ProgressFill.Background = new SolidColorBrush(Theme.ParseColor(a.PromptColor, Violet));
+        ProgressTrack.Background = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.PromptColor, Violet), 0.18));
 
         var font = new FontFamily(a.FontFamily);
         double fontSize = Math.Max(8, a.FontSize);
@@ -790,6 +997,8 @@ public partial class MainWindow : Window
 
         Placeholder.Text = a.Placeholder;
         Placeholder.FontFamily = font;
+        StatusText.FontFamily = font;
+        StatusText.FontSize = fontSize * 0.8;
         Placeholder.FontSize = fontSize;
         Placeholder.Foreground = Theme.Solid(a.PlaceholderColor, Colors.Gray);
         UpdatePlaceholder();

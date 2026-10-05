@@ -86,6 +86,11 @@ macOS 13 or later, Apple Silicon and Intel.
 
 Real commands always win: if a project shares its name with a program (`node`, `code`), use `cc node`.
 
+**Runs right in the bar** (no terminal, just ✓ or ✗): `clone ladder` with a progress bar, `mkdir` / `touch` / `cp` / `mv`,
+`rm` (to the Trash / Recycle Bin), `pull slate` / `push slate` / `status slate`, `kill :3000`, `= 24*365`,
+`node -v` / `which node` (copied), global installs (`brew install …`, `npm i -g …`, `winget install …`), and anything
+starting with `@`. **Shift+Enter** opens a terminal instead.
+
 **Default folder:** commands run, and repos clone, in a folder you choose: tray / menu bar → **Default folder…**, or type `:cd ~/projects`.
 
 Type `:config` in the bar to customize it, or `:help` for the other built-in commands.

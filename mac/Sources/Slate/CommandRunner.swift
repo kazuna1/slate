@@ -147,6 +147,9 @@ enum CommandRunner {
         try p.run()
     }
 
+    /// The shell to use for the `shell` setting (also used by in-place commands).
+    static func shellPath(_ setting: String) -> String { resolveShell(setting) }
+
     private static func resolveShell(_ setting: String) -> String {
         let s = setting.trimmingCharacters(in: .whitespaces)
         switch s.lowercased() {

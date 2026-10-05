@@ -42,6 +42,10 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private var messageAction: (() -> Void)?
     private var messageHide: DispatchWorkItem?
     private var pendingMessage: (String, String, (() -> Void)?)?
+    /// The latest in-place status while the user is typing; shown once the bar is dismissed.
+    private var pendingStatus: (String, StatusStyle, Double?, (() -> Void)?)?
+
+    enum StatusStyle { case running, success, failure }
 
     init(config: SlateConfig, history: History, hotkeyDisplay: String) {
         self.config = config
@@ -135,6 +139,10 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         }
         animateState(active: false, pop: false)
 
+        if let (text, style, progress, action) = pendingStatus {
+            pendingStatus = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.showStatus(text, style: style, progress: progress, action: action) }
+        }
         if let (title, body, action) = pendingMessage {
             pendingMessage = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.showMessage(title, body, action: action) }
@@ -174,11 +182,84 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? 4.5 : 10), execute: work)
     }
 
+    /// In-place command status in the bar: "◌ Cloning…" with a progress strip, then "✓ …" (green) or "✗ …" (red).
+    /// Raises the bar without taking focus; a result fades after a few seconds, a running task stays.
+    func showStatus(_ text: String, style: StatusStyle, progress: Double? = nil, action: (() -> Void)? = nil) {
+        guard !isActive else {
+            pendingStatus = (text, style, progress, action)
+            return
+        }
+        let a = config.appearance
+        let font = NSFont.firstAvailable(a.fontFamily, size: CGFloat(max(8, a.fontSize * 0.8)))
+        let (icon, color): (String, NSColor) = switch style {
+        case .running: ("◌", NSColor.hex(a.promptColor, fallback: Self.violet))
+        case .success: ("✓", .systemGreen)
+        case .failure: ("✗", .systemRed)
+        }
+        let line = NSMutableAttributedString(string: icon + "  ", attributes: [
+            .font: NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask), .foregroundColor: color])
+        line.append(NSAttributedString(string: text, attributes: [
+            .font: font, .foregroundColor: style == .failure ? color : NSColor.hex(a.textColor, fallback: .white)]))
+        if action != nil {
+            line.append(NSAttributedString(string: "   details ↗", attributes: [
+                .font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.hex(a.placeholderColor, fallback: .gray),
+                .baselineOffset: 2]))
+        }
+        view.message.attributedStringValue = line
+        view.message.isHidden = false
+        view.input.isHidden = true
+        view.ghost.isHidden = true
+        view.setProgress(progress, shown: style == .running)
+        view.needsLayout = true
+        messageAction = action
+
+        if panel.level != .floating {
+            panel.level = .floating
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { $0.duration = 0.2; panel.animator().alphaValue = 1 }
+        }
+
+        messageHide?.cancel()
+        guard style != .running else { return }
+        let work = DispatchWorkItem { [weak self] in self?.hideMessage() }
+        messageHide = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (style == .failure ? 8 : 4.5), execute: work)
+    }
+
+    /// Runs an in-place command: status while it works, then the result (copied if it's an answer).
+    private func runInline(_ plan: InlinePlan) {
+        let title = Inline.title(of: plan)
+        showStatus(title + "…", style: .running)
+        Inline.run(plan, update: { [weak self] progress in
+            let pct = progress.map { "  \(Int($0 * 100))%" } ?? ""
+            self?.showStatus(title + "…" + pct, style: .running, progress: progress)
+        }, done: { [weak self] result in
+            guard let self else { return }
+            var text = result.text
+            if result.ok, let copy = result.copy {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(copy, forType: .string)
+                text += "  · copied"
+            }
+            let log = result.log
+            let details: (() -> Void)? = (!result.ok && log?.isEmpty == false) ? { [weak self] in self?.openLog(log!) } : nil
+            self.showStatus(text, style: result.ok ? .success : .failure, action: details)
+        })
+    }
+
+    /// Shows a failed command's full output in a terminal.
+    private func openLog(_ log: String) {
+        let file = Paths.scripts.appendingPathComponent("output-\(UUID().uuidString.prefix(8)).txt")
+        guard (try? log.write(to: file, atomically: true, encoding: .utf8)) != nil else { return }
+        try? CommandRunner.run("cat \(shellQuote(file.path))", config: config)
+    }
+
     private func hideMessage() {
         guard !view.message.isHidden else { return }
         messageHide?.cancel()
         messageAction = nil
         view.message.isHidden = true
+        view.setProgress(nil, shown: false)
         view.input.isHidden = false
         updateGhost()
         if !isActive {
@@ -264,8 +345,9 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
         switch selector {
-        case #selector(NSResponder.insertNewline(_:)):
-            submit()
+        case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertLineBreak(_:)):
+            // Shift+Return: always a terminal, even for commands Slate would run in place.
+            submit(forceTerminal: NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false)
         case #selector(NSResponder.cancelOperation(_:)):
             dismiss(.escape)
         case #selector(NSResponder.moveUp(_:)):
@@ -291,7 +373,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         updateGhost()
     }
 
-    private func submit() {
+    private func submit(forceTerminal: Bool = false) {
         let text = view.input.stringValue.trimmingCharacters(in: .whitespaces)
         if text.isEmpty {
             dismiss(.escape)
@@ -310,7 +392,18 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             playRunFlash()
             setInput("")
             dismiss(.ran)
-            clone(repo)
+            clone(repo, inline: !forceTerminal)
+            return
+        }
+
+        // Quick, non-interactive commands run here with a ✓ / ✗ instead of opening a terminal.
+        if !forceTerminal, projectLaunch(text) == nil,
+           let plan = Inline.plan(text, config: config, resolveProject: { [weak self] in self?.resolveFolder($0) }) {
+            history.add(text)
+            playRunFlash()
+            setInput("")
+            dismiss(.ran)
+            runInline(plan)
             return
         }
 
@@ -377,7 +470,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         return isURLOrPath ? nil : target
     }
 
-    private func clone(_ query: String) {
+    private func clone(_ query: String, inline: Bool) {
         let config = self.config
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result { try self.github.find(query) }
@@ -390,6 +483,11 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
                 case .success(let matches) where matches.count > 1:
                     let list = matches.prefix(4).joined(separator: ", ") + (matches.count > 4 ? ", …" : "")
                     self.notify?("Several repos match \"\(query)\"", "\(list). Type git clone owner/name.")
+                case .success(let matches) where inline:
+                    let base = CommandRunner.workingDirectory(config.workingDirectory)
+                    let name = String(matches[0].split(separator: "/").last ?? "")
+                    self.projects.visited((base as NSString).appendingPathComponent(name), config: config) // "cc <name>" works right after
+                    self.runInline(Inline.clone(repo: matches[0], into: base))
                 case .success(let matches):
                     self.runClone(matches[0], config: config)
                 }
@@ -502,6 +600,16 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
            let launch = projectLaunch(view.input.stringValue.trimmingCharacters(in: .whitespaces)) {
             let run = ProjectCommand.build(config.projectCommand, folder: launch.folder, args: launch.args)
             suffix = "   → \(run) in \(abbreviatePath(launch.folder))"
+        } else if ghostMatch == nil, caretAtEnd {
+            // Commands Slate runs in place: say so, or show the calculator's answer right away.
+            let text = view.input.stringValue.trimmingCharacters(in: .whitespaces)
+            if let plan = Inline.plan(text, config: config, resolveProject: { [weak self] in self?.completer.exactFolder($0) }) {
+                if case .action(let title, _) = plan, title.hasPrefix("= ") {
+                    suffix = "   " + title
+                } else {
+                    suffix = "   ↵ runs here · ⇧↵ terminal"
+                }
+            }
         }
         view.ghost.stringValue = suffix
         view.ghost.isHidden = suffix.isEmpty
@@ -553,6 +661,8 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         view.border.backgroundColor = NSColor.hex(a.borderColor, fallback: violet).cgColor
         view.sheen.colors = [highlight.withAlphaComponent(0).cgColor, highlight.cgColor, highlight.withAlphaComponent(0).cgColor]
         view.flash.backgroundColor = highlight.cgColor
+        view.progressFill.backgroundColor = NSColor.hex(a.promptColor, fallback: violet).cgColor
+        view.progressClip.backgroundColor = NSColor.hex(a.promptColor, fallback: violet).withAlphaComponent(0.18).cgColor
 
         let font = NSFont.firstAvailable(a.fontFamily, size: CGFloat(max(8, a.fontSize)))
         let promptColor = NSColor.hex(a.promptColor, fallback: violet)
