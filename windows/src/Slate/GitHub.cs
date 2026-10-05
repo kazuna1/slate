@@ -18,7 +18,7 @@ namespace Slate;
 internal sealed class GitHubRepos
 {
     private static readonly string CachePath = Path.Combine(Paths.AppDir, "repos.json");
-    private static readonly TimeSpan RefreshAfter = TimeSpan.FromHours(1);
+    private static readonly TimeSpan RefreshAfter = TimeSpan.FromMinutes(10);
 
     private sealed class Cache
     {
@@ -47,7 +47,7 @@ internal sealed class GitHubRepos
         get { lock (_lock) return _cache.Repos.ToList(); }
     }
 
-    /// <summary>Refreshes the list in the background if it's older than an hour.</summary>
+    /// <summary>Refreshes the list in the background if it's older than 10 minutes.</summary>
     public void RefreshIfStale()
     {
         lock (_lock)
@@ -64,18 +64,20 @@ internal sealed class GitHubRepos
 
     /// <summary>
     /// Repos matching a name ("ladder") or "owner/name". Exact names win over prefixes.
-    /// Fetches the list first if it has never been loaded (call off the UI thread).
+    /// If the cached list has no exact match, it asks GitHub again first: the repo may have been
+    /// created after the last refresh. Call off the UI thread.
     /// </summary>
     public IReadOnlyList<string> Find(string query)
     {
         string q = query.Trim();
         if (q.Contains('/')) return [q]; // owner/name: gh clones it directly
-        if (All.Count == 0) Fetch();
 
         static string Name(string repo) => repo[(repo.LastIndexOf('/') + 1)..];
-        var repos = All;
-        var exact = repos.Where(r => Name(r).Equals(q, StringComparison.OrdinalIgnoreCase)).ToList();
-        return exact.Count > 0 ? exact : repos.Where(r => Name(r).StartsWith(q, StringComparison.OrdinalIgnoreCase)).ToList();
+        List<string> Exact() => All.Where(r => Name(r).Equals(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (Exact().Count == 0) Fetch();
+        var exact = Exact();
+        return exact.Count > 0 ? exact : All.Where(r => Name(r).StartsWith(q, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
     /// <summary>Repo names (or owner/name once a "/" is typed) for Tab completion.</summary>

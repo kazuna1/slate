@@ -117,7 +117,8 @@ ones you collaborate on, and your orgs), clones it into the default folder in a 
 `git clone owner/name`. URLs, paths and anything with extra options go to `git` unchanged.
 
 Needs the [GitHub CLI](https://cli.github.com) logged in (`gh auth login`). The repo list is cached in `repos.json`
-and refreshed in the background at most once an hour.
+and refreshed in the background every 10 minutes; a name that isn't in the cache makes Slate ask GitHub
+right away, so a repo you just created clones immediately.
 
 ## Themes
 

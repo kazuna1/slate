@@ -5,7 +5,7 @@ import Foundation
 /// Mirrors windows/src/Slate/GitHub.cs.
 final class GitHubRepos {
     private static let cacheURL = Paths.appSupport.appendingPathComponent("repos.json")
-    private static let refreshAfter: TimeInterval = 3600
+    private static let refreshAfter: TimeInterval = 600
     private static let ghPaths = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", NSHomeDirectory() + "/.local/bin/gh"]
 
     private struct Cache: Codable {
@@ -28,7 +28,7 @@ final class GitHubRepos {
         return cache.repos
     }
 
-    /// Refreshes the list in the background if it's older than an hour.
+    /// Refreshes the list in the background if it's older than 10 minutes.
     func refreshIfStale() {
         lock.lock()
         let stale = !fetching && Date().timeIntervalSince(cache.fetchedAt) > Self.refreshAfter
@@ -39,15 +39,17 @@ final class GitHubRepos {
     }
 
     /// Repos matching a name ("ladder") or "owner/name". Exact names win over prefixes.
-    /// Fetches the list first if it has never been loaded (call off the main thread).
+    /// If the cached list has no exact match, it asks GitHub again first: the repo may have been
+    /// created after the last refresh. Call off the main thread.
     func find(_ query: String) throws -> [String] {
         let q = query.lowercased().trimmingCharacters(in: .whitespaces)
         if q.contains("/") { return [query] } // owner/name: gh clones it directly
-        if all.isEmpty { try fetch() }
-        let repos = all
         func name(_ r: String) -> String { String(r.split(separator: "/").last ?? "").lowercased() }
-        let exact = repos.filter { name($0) == q }
-        return exact.isEmpty ? repos.filter { name($0).hasPrefix(q) } : exact
+        func exact() -> [String] { all.filter { name($0) == q } }
+
+        if exact().isEmpty { try fetch() }
+        let found = exact()
+        return found.isEmpty ? all.filter { name($0).hasPrefix(q) } : found
     }
 
     /// Repo names (and owner/name for the ambiguous ones) for Tab completion.
