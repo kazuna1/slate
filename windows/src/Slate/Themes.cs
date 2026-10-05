@@ -65,5 +65,17 @@ internal static class Themes
             a.PromptColor = "#6EE787";
             a.Decoration = "vines";
         }),
+        new("Dragon", a =>
+        {
+            a.Background = ["#4A0A0E", "#2E0508", "#190204"];
+            a.BorderColor = "#C9962B";
+            a.BorderHighlight = "#FFE6A3";
+            a.GlowColor = "#E11D2E";
+            a.GlowOpacity = 0.6;
+            a.TextColor = "#FFF4E0";
+            a.PlaceholderColor = "#C49A6C";
+            a.PromptColor = "#F5C542";
+            a.Decoration = "dragon";
+        }),
     };
 }

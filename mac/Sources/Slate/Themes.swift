@@ -56,5 +56,16 @@ enum Themes {
             a.promptColor = "#6EE787"
             a.decoration = "vines"
         },
+        Theme(name: "Dragon") { a in
+            a.background = ["#4A0A0E", "#2E0508", "#190204"]
+            a.borderColor = "#C9962B"
+            a.borderHighlight = "#FFE6A3"
+            a.glowColor = "#E11D2E"
+            a.glowOpacity = 0.6
+            a.textColor = "#FFF4E0"
+            a.placeholderColor = "#C49A6C"
+            a.promptColor = "#F5C542"
+            a.decoration = "dragon"
+        },
     ]
 }

@@ -62,12 +62,10 @@ final class BarView: NSView {
     let background = CAGradientLayer()
     let flash = CALayer()
     /// Thin strip along the bottom edge for in-place commands: a fill (0...1) or a sliding segment (nil).
-    /// Theme decoration ("vines"), clipped to the bar, between the background and the text.
+    /// Theme decoration ("vines", "dragon"), clipped to the bar, between the background and the text.
     let decor = CALayer()
-    let decorBranch = CAShapeLayer()
-    let decorLeavesA = CAShapeLayer()
-    let decorLeavesB = CAShapeLayer()
     var decoration = ""
+    var decorColors: [Decoration.Role: NSColor] = [:]
     let progressClip = CALayer()
     let progressFill = CALayer()
     private(set) var progressValue: Double?
@@ -104,11 +102,6 @@ final class BarView: NSView {
         base.addSublayer(background)
         background.masksToBounds = true
         decor.masksToBounds = true
-        for shape in [decorBranch, decorLeavesA, decorLeavesB] { decor.addSublayer(shape) }
-        decorBranch.fillColor = nil
-        decorBranch.lineWidth = 1.8
-        decorBranch.lineCap = .round
-        decorBranch.lineJoin = .round
         base.addSublayer(decor)
         base.addSublayer(flash)
         progressClip.masksToBounds = true
@@ -229,22 +222,38 @@ final class BarView: NSView {
     private func layoutDecoration(in rect: CGRect, radius: CGFloat) {
         decor.frame = rect
         decor.cornerRadius = radius
-        decor.isHidden = decoration != "vines"
-        guard !decor.isHidden else { return }
+        decor.sublayers?.forEach { $0.removeFromSuperlayer() }
+        let parts = Decoration.parts(decoration, width: rect.width, height: rect.height, radius: radius)
+        decor.isHidden = parts.isEmpty
         let h = rect.height
-        let branch = CGMutablePath(), leavesA = CGMutablePath(), leavesB = CGMutablePath()
         let flip = { (p: CGPoint) in CGPoint(x: p.x, y: h - p.y) } // geometry is y-down; layers are y-up
-        for vine in Decoration.vines(width: rect.width, height: h, radius: radius) {
-            branch.addLines(between: vine.branch.map(flip))
-            for (i, leaf) in vine.leaves.enumerated() {
-                (i % 2 == 0 ? leavesA : leavesB).addLines(between: leaf.map(flip))
-                (i % 2 == 0 ? leavesA : leavesB).closeSubpath()
+        for part in parts {
+            let path = CGMutablePath()
+            for points in part.paths where points.count > 1 {
+                path.addLines(between: points.map(flip))
+                if part.lineWidth == nil { path.closeSubpath() }
             }
+            let color = (decorColors[part.role] ?? .white).withAlphaComponent(part.alpha).cgColor
+            let shape = CAShapeLayer()
+            shape.frame = decor.bounds
+            shape.path = path
+            if let width = part.lineWidth {
+                shape.fillColor = nil
+                shape.strokeColor = color
+                shape.lineWidth = width
+                shape.lineCap = .round
+                shape.lineJoin = .round
+            } else {
+                shape.fillColor = color
+            }
+            if part.glow {
+                shape.shadowColor = color
+                shape.shadowOpacity = 1
+                shape.shadowRadius = 4
+                shape.shadowOffset = .zero
+            }
+            decor.addSublayer(shape)
         }
-        for shape in [decorBranch, decorLeavesA, decorLeavesB] { shape.frame = decor.bounds }
-        decorBranch.path = branch
-        decorLeavesA.path = leavesA
-        decorLeavesB.path = leavesB
     }
 
     /// nil = indeterminate (a segment slides back and forth); 0...1 = filled up to that point.

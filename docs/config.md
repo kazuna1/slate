@@ -46,7 +46,7 @@ Comments (`//`) and trailing commas are allowed.
     "hintText": null,             // defaults to the hotkey
     "showVersion": true,          // tiny version tag under the hint
     "showFolder": true,           // folder chip showing where commands run
-    "decoration": "",             // "vines" draws branches and leaves (set by the Forest theme)
+    "decoration": "",             // "vines" (Forest) or "dragon" (Dragon), drawn under the text
     "idleOpacity": 0.9            // opacity while sitting on the desktop
   },
 
@@ -162,7 +162,7 @@ right away, so a repo you just created clones immediately.
 ## Themes
 
 **Themes** in the tray / menu-bar menu applies a ready-made look by rewriting the `appearance` colors in your config:
-**Violet** (the original), **Dark**, **Light** and **Forest** (deep greens with winding vines and leaves along the edges). Preview one without applying it:
+**Violet** (the original), **Dark**, **Light**, **Forest** (deep greens with winding vines and leaves along the edges) and **Dragon** (crimson and gold, a Chinese dragon spiralling around the bar, chasing a pearl). Preview one without applying it:
 `Slate.exe --render-preview out.png "vs slate" Light` (Windows).
 Themes are defined in `windows/src/Slate/Themes.cs` (Windows) and `mac/Sources/Slate/Themes.swift` (macOS); add one entry to each list.
 

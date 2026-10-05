@@ -1031,53 +1031,60 @@ public partial class MainWindow : Window
         AnimateState(_active, pop: false);
     }
 
-    /// <summary>Draws the theme decoration ("vines") under the text; redrawn when the bar's size changes.</summary>
+    /// <summary>Draws the theme decoration ("vines", "dragon") under the text; redrawn when the bar's size changes.</summary>
     private void DrawDecoration()
     {
         Decor.Children.Clear();
         var a = _config.Appearance;
         double w = Decor.ActualWidth, h = Decor.ActualHeight;
-        if (a.Decoration != "vines" || w < 10 || h < 10) return;
+        if (w < 10 || h < 10) return;
 
         double r = Math.Max(0, a.CornerRadius - a.BorderThickness);
+        var parts = Decoration.Parts(a.Decoration, w, h, r);
+        if (parts.Count == 0) return;
         Decor.Clip = new RectangleGeometry(new Rect(0, 0, w, h), r, r);
-        var vines = Decoration.Vines(w, h, r);
 
-        static Geometry Lines(IEnumerable<List<Point>> parts, bool closed)
+        var violet = Violet;
+        Color RoleColor(Decoration.Role role) => role switch
+        {
+            Decoration.Role.Border => Theme.ParseColor(a.BorderColor, violet),
+            Decoration.Role.Highlight => Theme.ParseColor(a.BorderHighlight, violet),
+            Decoration.Role.Glow => Theme.ParseColor(a.GlowColor, violet),
+            _ => Theme.ParseColor(a.PromptColor, violet),
+        };
+
+        foreach (var part in parts)
         {
             var geometry = new StreamGeometry();
             using (var ctx = geometry.Open())
             {
-                foreach (var points in parts)
+                bool closed = part.LineWidth == null;
+                foreach (var points in part.Paths.Where(p => p.Count > 1))
                 {
                     ctx.BeginFigure(points[0], closed, closed);
                     ctx.PolyLineTo(points.Skip(1).ToList(), true, true);
                 }
             }
             geometry.Freeze();
-            return geometry;
-        }
 
-        var violet = Violet;
-        Decor.Children.Add(new System.Windows.Shapes.Path
-        {
-            Data = Lines(vines.Select(v => v.Branch), false),
-            Stroke = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.BorderColor, violet), 0.75)),
-            StrokeThickness = 1.8,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            StrokeLineJoin = PenLineJoin.Round,
-        });
-        Decor.Children.Add(new System.Windows.Shapes.Path
-        {
-            Data = Lines(vines.SelectMany(v => v.Leaves.Where((_, i) => i % 2 == 0)), true),
-            Fill = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.PromptColor, violet), 0.5)),
-        });
-        Decor.Children.Add(new System.Windows.Shapes.Path
-        {
-            Data = Lines(vines.SelectMany(v => v.Leaves.Where((_, i) => i % 2 == 1)), true),
-            Fill = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.BorderHighlight, violet), 0.32)),
-        });
+            var brush = new SolidColorBrush(Theme.WithAlpha(RoleColor(part.Role), part.Alpha));
+            var path = new System.Windows.Shapes.Path { Data = geometry };
+            if (part.LineWidth is double width)
+            {
+                path.Stroke = brush;
+                path.StrokeThickness = width;
+                path.StrokeStartLineCap = PenLineCap.Round;
+                path.StrokeEndLineCap = PenLineCap.Round;
+                path.StrokeLineJoin = PenLineJoin.Round;
+            }
+            else
+            {
+                path.Fill = brush;
+            }
+            if (part.Glow)
+                path.Effect = new DropShadowEffect { Color = RoleColor(part.Role), BlurRadius = 8, ShadowDepth = 0, Opacity = 1 };
+            Decor.Children.Add(path);
+        }
     }
 
     /// <summary>"~\\code\\slate"; long paths keep their end: "…\\secpo\\slate".</summary>

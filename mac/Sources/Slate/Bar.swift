@@ -663,9 +663,10 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         view.flash.backgroundColor = highlight.cgColor
         view.progressFill.backgroundColor = NSColor.hex(a.promptColor, fallback: violet).cgColor
         view.decoration = a.decoration
-        view.decorBranch.strokeColor = NSColor.hex(a.borderColor, fallback: violet).withAlphaComponent(0.75).cgColor
-        view.decorLeavesA.fillColor = NSColor.hex(a.promptColor, fallback: violet).withAlphaComponent(0.5).cgColor
-        view.decorLeavesB.fillColor = NSColor.hex(a.borderHighlight, fallback: violet).withAlphaComponent(0.32).cgColor
+        view.decorColors = [
+            .border: NSColor.hex(a.borderColor, fallback: violet), .prompt: NSColor.hex(a.promptColor, fallback: violet),
+            .highlight: NSColor.hex(a.borderHighlight, fallback: violet), .glow: NSColor.hex(a.glowColor, fallback: violet),
+        ]
         view.progressClip.backgroundColor = NSColor.hex(a.promptColor, fallback: violet).withAlphaComponent(0.18).cgColor
 
         let font = NSFont.firstAvailable(a.fontFamily, size: CGFloat(max(8, a.fontSize)))
