@@ -49,3 +49,48 @@ internal static class Commands
         return names;
     }
 }
+
+
+/// <summary>
+/// What typing a project name runs. <c>projectCommand</c> holds the command plus its default options
+/// ("claude -c": continue the last conversation). Options you type replace the defaults
+/// ("slate -r" → "claude -r"), and "-n" means "no defaults" ("slate -n" → "claude", a new conversation).
+/// Mirrors mac/Sources/Slate/Commands.swift.
+/// </summary>
+internal static class ProjectCommand
+{
+    public static string Build(string projectCommand, string folder, string args)
+    {
+        var parts = projectCommand.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return string.Empty;
+        string baseCmd = parts[0];
+        string defaults = parts.Length > 1 ? parts[1] : string.Empty;
+
+        if (args == "-n" || args.StartsWith("-n ")) return $"{baseCmd} {args[2..].Trim()}".Trim();
+        if (args.Length > 0) return $"{baseCmd} {args}";
+
+        // "claude -c" with nothing to continue would just fail: start a new conversation instead.
+        var defaultWords = defaults.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (baseCmd.Equals("claude", StringComparison.OrdinalIgnoreCase) && defaultWords.Contains("-c") && !ClaudeSessions.Exist(folder))
+            defaults = string.Join(' ', defaultWords.Where(w => w != "-c"));
+        return $"{baseCmd} {defaults}".Trim();
+    }
+}
+
+/// <summary>Claude Code stores a folder's conversations in ~/.claude/projects/&lt;path with non-alphanumerics as "-"&gt;.</summary>
+internal static class ClaudeSessions
+{
+    public static bool Exist(string folder)
+    {
+        string slug = new(folder.Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-').ToArray());
+        string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects", slug);
+        try
+        {
+            return System.IO.Directory.Exists(dir) && System.IO.Directory.EnumerateFiles(dir, "*.jsonl").Any();
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+}

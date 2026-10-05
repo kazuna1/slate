@@ -33,3 +33,36 @@ enum Commands {
         shellWords.contains(word) || onPath.contains(word)
     }
 }
+
+/// What typing a project name runs. `projectCommand` holds the command plus its default options
+/// ("claude -c": continue the last conversation). Options you type replace the defaults
+/// ("slate -r" → "claude -r"), and "-n" means "no defaults" ("slate -n" → "claude", a new conversation).
+/// Mirrors windows/src/Slate/Commands.cs.
+enum ProjectCommand {
+    static func build(_ projectCommand: String, folder: String, args: String) -> String {
+        let parts = projectCommand.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1).map(String.init)
+        guard let base = parts.first else { return "" }
+        var defaults = parts.count > 1 ? parts[1] : ""
+
+        if args == "-n" || args.hasPrefix("-n ") {
+            return (base + " " + args.dropFirst(2).trimmingCharacters(in: .whitespaces)).trimmingCharacters(in: .whitespaces)
+        }
+        if !args.isEmpty { return "\(base) \(args)" }
+
+        // "claude -c" with nothing to continue would just fail: start a new conversation instead.
+        if base == "claude", defaults.split(separator: " ").contains("-c"), !ClaudeSessions.exist(in: folder) {
+            defaults = defaults.split(separator: " ").filter { $0 != "-c" }.joined(separator: " ")
+        }
+        return (base + " " + defaults).trimmingCharacters(in: .whitespaces)
+    }
+}
+
+/// Claude Code stores a folder's conversations in ~/.claude/projects/<path with non-alphanumerics as "-">.
+enum ClaudeSessions {
+    static func exist(in folder: String) -> Bool {
+        let slug = String(folder.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        let dir = NSHomeDirectory() + "/.claude/projects/" + slug
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        return files.contains { $0.hasSuffix(".jsonl") }
+    }
+}

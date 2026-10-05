@@ -322,7 +322,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         if let launch = projectLaunch(text) {
             folder = launch.folder
             projects.visited(launch.folder, config: config)
-            command = launch.args.isEmpty ? config.projectCommand : "\(config.projectCommand) \(launch.args)"
+            command = ProjectCommand.build(config.projectCommand, folder: launch.folder, args: launch.args)
         }
 
         let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
@@ -500,7 +500,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         // Typing a project name: say what Return will do, e.g. "   → claude in ~/projects/slate".
         if ghostMatch == nil, caretAtEnd,
            let launch = projectLaunch(view.input.stringValue.trimmingCharacters(in: .whitespaces)) {
-            let run = launch.args.isEmpty ? config.projectCommand : "\(config.projectCommand) \(launch.args)"
+            let run = ProjectCommand.build(config.projectCommand, folder: launch.folder, args: launch.args)
             suffix = "   → \(run) in \(abbreviatePath(launch.folder))"
         }
         view.ghost.stringValue = suffix

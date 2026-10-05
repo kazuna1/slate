@@ -35,10 +35,11 @@ public sealed class SlateConfig
     };
 
     /// <summary>
-    /// What typing just a project name runs inside it: "slate" → claude, "slate -c" → claude -c.
+    /// What typing just a project name runs inside it, with default options: "slate" → claude -c (continue),
+    /// "slate -n" → claude (new conversation), "slate -r" → claude -r (typed options replace the defaults).
     /// Empty turns the feature off. Real commands with the same name always win.
     /// </summary>
-    public string ProjectCommand { get; set; } = "claude";
+    public string ProjectCommand { get; set; } = "claude -c";
 
     /// <summary>Tab-completion source: folders zoxide knows about (ranked by how often you use them).</summary>
     public bool UseZoxide { get; set; } = true;

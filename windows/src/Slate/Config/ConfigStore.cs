@@ -92,6 +92,12 @@ internal sealed class ConfigStore : IDisposable
             config.Shortcuts["vs"] = "@code .";
             changed = true;
         }
+        // 1.5.2: typing a project name continues the last conversation by default ("-n" starts a new one).
+        if (config.ProjectCommand == "claude")
+        {
+            config.ProjectCommand = "claude -c";
+            changed = true;
+        }
         return changed;
     }
 

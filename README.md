@@ -77,8 +77,9 @@ macOS 13 or later, Apple Silicon and Intel.
 
 | Type | Does |
 |---|---|
-| `slate` | Claude Code in your `slate` folder (just the project name) |
-| `slate -c` | Options pass through: here, `claude -c` in `slate` |
+| `slate` | Claude Code in your `slate` folder, continuing your last conversation there (`claude -c`) |
+| `slate -n` | A new Claude conversation in `slate` |
+| `slate -r` | Other options pass through: here, `claude -r` (pick a past conversation) |
 | `vs slate` | VS Code in it |
 | `z slate` | A terminal in it |
 | `clone ladder` | Finds `ladder` among your GitHub repos and clones it (also `git clone ladder`, `gc ladder`) |

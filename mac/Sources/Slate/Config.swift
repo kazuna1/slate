@@ -22,9 +22,10 @@ struct SlateConfig: Codable {
         "cc": "claude",
         "vs": "@open -a 'Visual Studio Code' .", // "@": runs hidden, no terminal left behind
     ]
-    /// What typing just a project name runs inside it: "slate" → claude, "slate -c" → claude -c.
+    /// What typing just a project name runs inside it, with default options: "slate" → claude -c (continue),
+    /// "slate -n" → claude (new conversation), "slate -r" → claude -r (typed options replace the defaults).
     /// Empty turns the feature off. Real commands with the same name always win.
-    var projectCommand = "claude"
+    var projectCommand = "claude -c"
     var useZoxide = true
     /// Tab completion also offers every subfolder of these.
     var projectRoots = ["~/projects", "~/Developer", "~/code"]
@@ -116,6 +117,11 @@ final class ConfigStore {
         // 1.3.5: VS Code opens without leaving a terminal behind.
         if config.shortcuts["vs"] == "open -a 'Visual Studio Code' ." {
             config.shortcuts["vs"] = "@open -a 'Visual Studio Code' ."
+            changed = true
+        }
+        // 1.5.2: typing a project name continues the last conversation by default ("-n" starts a new one).
+        if config.projectCommand == "claude" {
+            config.projectCommand = "claude -c"
             changed = true
         }
         if changed { save(config) }

@@ -428,7 +428,7 @@ public partial class MainWindow : Window
 
         // Typing a project name: say what Enter will do, e.g. "   → claude -c in ~\code\slate".
         if (_ghostMatch == null && Input.CaretIndex == Input.Text.Length && ProjectLaunch(Input.Text.Trim()) is (string f, string args))
-            Ghost.Text = $"   → {(_config.ProjectCommand + " " + args).Trim()} in {CommandRunner.Abbreviate(f)}";
+            Ghost.Text = $"   → {ProjectCommand.Build(_config.ProjectCommand, f, args)} in {CommandRunner.Abbreviate(f)}";
 
         Ghost.Visibility = Ghost.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -593,7 +593,7 @@ public partial class MainWindow : Window
         {
             folder = projectFolder;
             _projects.Visited(folder, _config);
-            command = projectArgs.Length == 0 ? _config.ProjectCommand : $"{_config.ProjectCommand} {projectArgs}";
+            command = ProjectCommand.Build(_config.ProjectCommand, projectFolder, projectArgs);
         }
 
         int space = text.IndexOf(' ');

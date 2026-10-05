@@ -12,7 +12,7 @@ Comments (`//`) and trailing commas are allowed.
   "historySize": 500,
   "checkForUpdates": true,        // check GitHub at startup and daily, offer one-click updates
   "theme": "",                    // last theme picked from the Themes menu
-  "projectCommand": "claude",     // typing just a project name runs this in it ("slate -c")
+  "projectCommand": "claude -c",  // typing just a project name runs this in it ("slate"); "-n" drops the options
   "shortcuts": {                  // "<key> <folder>": find the folder, run the command in it
     "z": "",                      //   z slate   → terminal in the slate folder
     "cc": "claude",               //   cc slate  → Claude Code in it
@@ -73,9 +73,17 @@ Logs go to `%APPDATA%\Slate\slate.log`.
 
 ## Just the project name
 
-Type a project's folder name on its own and Slate runs `projectCommand` (default `claude`) inside it:
-`slate` → `claude` in slate, `slate -c` → `claude -c`. Only options (starting with `-`) may follow the name.
-While you type, a grey hint shows what Enter will do: `→ claude in ~/projects/slate`.
+Type a project's folder name on its own and Slate runs `projectCommand` (default `claude -c`) inside it:
+
+| Type | Runs |
+|---|---|
+| `slate` | `claude -c`: continue the last conversation in slate |
+| `slate -n` | `claude`: a new conversation (`-n` drops the default options) |
+| `slate -r` | `claude -r`: options you type replace the defaults |
+
+If the folder has no Claude conversation yet, `slate` starts a new one instead of failing. Slate checks Claude Code's
+own session folder for that project. Only options (starting with `-`) may follow the name. While you type, a grey
+hint shows what Enter will do: `→ claude -c in ~/projects/slate`.
 
 It only triggers on an **exact** folder name that is not a real command: programs on your PATH and shell
 builtins always win, so `node` or `code` keep working even if you have folders with those names (use `cc node`).
