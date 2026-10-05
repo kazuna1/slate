@@ -27,6 +27,7 @@ internal static class Themes
             a.TextColor = d.TextColor;
             a.PlaceholderColor = d.PlaceholderColor;
             a.PromptColor = d.PromptColor;
+            a.Decoration = "";
         }),
         new("Dark", a =>
         {
@@ -38,6 +39,7 @@ internal static class Themes
             a.TextColor = "#FAFAFA";
             a.PlaceholderColor = "#71717A";
             a.PromptColor = "#E4E4E7";
+            a.Decoration = "";
         }),
         new("Light", a =>
         {
@@ -49,6 +51,19 @@ internal static class Themes
             a.TextColor = "#18181B";
             a.PlaceholderColor = "#8A8A93";
             a.PromptColor = "#3F3F46";
+            a.Decoration = "";
+        }),
+        new("Forest", a =>
+        {
+            a.Background = ["#123321", "#0C2617", "#07170E"];
+            a.BorderColor = "#3F8F4F";
+            a.BorderHighlight = "#BBF7D0";
+            a.GlowColor = "#22C55E";
+            a.GlowOpacity = 0.55;
+            a.TextColor = "#ECFDF3";
+            a.PlaceholderColor = "#7FA88C";
+            a.PromptColor = "#6EE787";
+            a.Decoration = "vines";
         }),
     };
 }

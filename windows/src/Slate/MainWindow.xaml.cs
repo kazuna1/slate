@@ -117,6 +117,7 @@ public partial class MainWindow : Window
         Input.TextChanged += OnInputTextChanged;
         Input.SelectionChanged += (_, _) => QueueOverlay();
         Input.SizeChanged += (_, _) => QueueOverlay();
+        Decor.SizeChanged += (_, _) => DrawDecoration();
         Closed += (_, _) => { if (_winEventHook != IntPtr.Zero) Native.UnhookWinEvent(_winEventHook); };
 
         ApplyConfig(config, hotkeyDisplay);
@@ -379,7 +380,7 @@ public partial class MainWindow : Window
 
         _statusHide?.Stop();
         if (style == StatusStyle.Running) return;
-        _statusHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(style == StatusStyle.Failure ? 8 : 4.5) };
+        _statusHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(style == StatusStyle.Failure ? 8 : 2) };
         _statusHide.Tick += (_, _) => HideStatus();
         _statusHide.Start();
     }
@@ -969,6 +970,7 @@ public partial class MainWindow : Window
         FlashLayer.Background = Theme.Solid(a.BorderHighlight, Colors.White);
         ProgressFill.Background = new SolidColorBrush(Theme.ParseColor(a.PromptColor, Violet));
         ProgressTrack.Background = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.PromptColor, Violet), 0.18));
+        DrawDecoration();
 
         var font = new FontFamily(a.FontFamily);
         double fontSize = Math.Max(8, a.FontSize);
@@ -1027,6 +1029,55 @@ public partial class MainWindow : Window
         Position();
         StartIdleAnimations();
         AnimateState(_active, pop: false);
+    }
+
+    /// <summary>Draws the theme decoration ("vines") under the text; redrawn when the bar's size changes.</summary>
+    private void DrawDecoration()
+    {
+        Decor.Children.Clear();
+        var a = _config.Appearance;
+        double w = Decor.ActualWidth, h = Decor.ActualHeight;
+        if (a.Decoration != "vines" || w < 10 || h < 10) return;
+
+        double r = Math.Max(0, a.CornerRadius - a.BorderThickness);
+        Decor.Clip = new RectangleGeometry(new Rect(0, 0, w, h), r, r);
+        var vines = Decoration.Vines(w, h, r);
+
+        static Geometry Lines(IEnumerable<List<Point>> parts, bool closed)
+        {
+            var geometry = new StreamGeometry();
+            using (var ctx = geometry.Open())
+            {
+                foreach (var points in parts)
+                {
+                    ctx.BeginFigure(points[0], closed, closed);
+                    ctx.PolyLineTo(points.Skip(1).ToList(), true, true);
+                }
+            }
+            geometry.Freeze();
+            return geometry;
+        }
+
+        var violet = Violet;
+        Decor.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Lines(vines.Select(v => v.Branch), false),
+            Stroke = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.BorderColor, violet), 0.75)),
+            StrokeThickness = 1.8,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round,
+        });
+        Decor.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Lines(vines.SelectMany(v => v.Leaves.Where((_, i) => i % 2 == 0)), true),
+            Fill = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.PromptColor, violet), 0.5)),
+        });
+        Decor.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Lines(vines.SelectMany(v => v.Leaves.Where((_, i) => i % 2 == 1)), true),
+            Fill = new SolidColorBrush(Theme.WithAlpha(Theme.ParseColor(a.BorderHighlight, violet), 0.32)),
+        });
     }
 
     /// <summary>"~\\code\\slate"; long paths keep their end: "…\\secpo\\slate".</summary>

@@ -28,6 +28,9 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
+                <!-- Theme decoration ("vines"), spanning the whole bar under the text. -->
+                <Canvas x:Name="Decor" Grid.ColumnSpan="3" Margin="-22,0,-14,0" IsHitTestVisible="False"/>
+
                 <TextBlock x:Name="Prompt" VerticalAlignment="Center" Margin="0,0,14,0">
                     <TextBlock.RenderTransform>
                         <TranslateTransform x:Name="PromptShift"/>

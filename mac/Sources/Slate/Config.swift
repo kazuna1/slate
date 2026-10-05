@@ -60,6 +60,8 @@ struct SlateConfig: Codable {
         var showHint = true
         /// Folder chip showing where commands run (the default folder).
         var showFolder = true
+        /// "" or "vines" (branches and leaves along the edges; set by the Forest theme).
+        var decoration = ""
         /// Tiny version number under the hint.
         var showVersion = true
         /// Overrides the hint; defaults to the hotkey, e.g. "⌥ Space".

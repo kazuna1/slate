@@ -223,7 +223,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         guard style != .running else { return }
         let work = DispatchWorkItem { [weak self] in self?.hideMessage() }
         messageHide = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + (style == .failure ? 8 : 4.5), execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (style == .failure ? 8 : 2), execute: work)
     }
 
     /// Runs an in-place command: status while it works, then the result (copied if it's an answer).
@@ -662,6 +662,10 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         view.sheen.colors = [highlight.withAlphaComponent(0).cgColor, highlight.cgColor, highlight.withAlphaComponent(0).cgColor]
         view.flash.backgroundColor = highlight.cgColor
         view.progressFill.backgroundColor = NSColor.hex(a.promptColor, fallback: violet).cgColor
+        view.decoration = a.decoration
+        view.decorBranch.strokeColor = NSColor.hex(a.borderColor, fallback: violet).withAlphaComponent(0.75).cgColor
+        view.decorLeavesA.fillColor = NSColor.hex(a.promptColor, fallback: violet).withAlphaComponent(0.5).cgColor
+        view.decorLeavesB.fillColor = NSColor.hex(a.borderHighlight, fallback: violet).withAlphaComponent(0.32).cgColor
         view.progressClip.backgroundColor = NSColor.hex(a.promptColor, fallback: violet).withAlphaComponent(0.18).cgColor
 
         let font = NSFont.firstAvailable(a.fontFamily, size: CGFloat(max(8, a.fontSize)))

@@ -94,6 +94,9 @@ public sealed class AppearanceConfig
     /// <summary>Folder chip showing where commands run (the default folder).</summary>
     public bool ShowFolder { get; set; } = true;
 
+    /// <summary>"" or "vines" (branches and leaves along the edges; set by the Forest theme).</summary>
+    public string Decoration { get; set; } = "";
+
     /// <summary>Tiny version number under the hint.</summary>
     public bool ShowVersion { get; set; } = true;
     /// <summary>Overrides the hint text; defaults to the hotkey, e.g. "Win + Space".</summary>

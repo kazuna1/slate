@@ -21,6 +21,7 @@ enum Themes {
             a.textColor = d.textColor
             a.placeholderColor = d.placeholderColor
             a.promptColor = d.promptColor
+            a.decoration = ""
         },
         Theme(name: "Dark") { a in
             a.background = ["#1C1C1F", "#111113", "#09090B"]
@@ -31,6 +32,7 @@ enum Themes {
             a.textColor = "#FAFAFA"
             a.placeholderColor = "#71717A"
             a.promptColor = "#E4E4E7"
+            a.decoration = ""
         },
         Theme(name: "Light") { a in
             a.background = ["#FFFFFF", "#F7F7F8", "#F0F0F2"]
@@ -41,6 +43,18 @@ enum Themes {
             a.textColor = "#18181B"
             a.placeholderColor = "#8A8A93"
             a.promptColor = "#3F3F46"
+            a.decoration = ""
+        },
+        Theme(name: "Forest") { a in
+            a.background = ["#123321", "#0C2617", "#07170E"]
+            a.borderColor = "#3F8F4F"
+            a.borderHighlight = "#BBF7D0"
+            a.glowColor = "#22C55E"
+            a.glowOpacity = 0.55
+            a.textColor = "#ECFDF3"
+            a.placeholderColor = "#7FA88C"
+            a.promptColor = "#6EE787"
+            a.decoration = "vines"
         },
     ]
 }
