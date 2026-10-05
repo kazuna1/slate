@@ -1031,7 +1031,7 @@ public partial class MainWindow : Window
         AnimateState(_active, pop: false);
     }
 
-    /// <summary>Draws the theme decoration ("vines", "dragon") under the text; redrawn when the bar's size changes.</summary>
+    /// <summary>Draws the theme decoration ("vines", "dunes", "stars") under the text; redrawn when the bar's size changes.</summary>
     private void DrawDecoration()
     {
         Decor.Children.Clear();

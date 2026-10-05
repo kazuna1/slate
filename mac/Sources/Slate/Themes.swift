@@ -56,16 +56,27 @@ enum Themes {
             a.promptColor = "#6EE787"
             a.decoration = "vines"
         },
-        Theme(name: "Dragon") { a in
-            a.background = ["#4A0A0E", "#2E0508", "#190204"]
-            a.borderColor = "#C9962B"
-            a.borderHighlight = "#FFE6A3"
-            a.glowColor = "#E11D2E"
+        Theme(name: "Dune") { a in
+            a.background = ["#5C3418", "#3A200E", "#1E1007"]
+            a.borderColor = "#C98A4B"
+            a.borderHighlight = "#FFD8A8"
+            a.glowColor = "#E8913A"
+            a.glowOpacity = 0.55
+            a.textColor = "#FFF1E0"
+            a.placeholderColor = "#B98B66"
+            a.promptColor = "#F4A259"
+            a.decoration = "dunes"
+        },
+        Theme(name: "Galaxy") { a in
+            a.background = ["#140F3A", "#0B0B2A", "#05050F"]
+            a.borderColor = "#6D5BD0"
+            a.borderHighlight = "#E0D7FF"
+            a.glowColor = "#7C3AED"
             a.glowOpacity = 0.6
-            a.textColor = "#FFF4E0"
-            a.placeholderColor = "#C49A6C"
-            a.promptColor = "#F5C542"
-            a.decoration = "dragon"
+            a.textColor = "#F5F3FF"
+            a.placeholderColor = "#8A84B8"
+            a.promptColor = "#A78BFA"
+            a.decoration = "stars"
         },
     ]
 }

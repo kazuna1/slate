@@ -62,7 +62,7 @@ final class BarView: NSView {
     let background = CAGradientLayer()
     let flash = CALayer()
     /// Thin strip along the bottom edge for in-place commands: a fill (0...1) or a sliding segment (nil).
-    /// Theme decoration ("vines", "dragon"), clipped to the bar, between the background and the text.
+    /// Theme decoration ("vines", "dunes", "stars"), clipped to the bar, between the background and the text.
     let decor = CALayer()
     var decoration = ""
     var decorColors: [Decoration.Role: NSColor] = [:]

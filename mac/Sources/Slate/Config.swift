@@ -126,6 +126,12 @@ final class ConfigStore {
             config.projectCommand = "claude -c"
             changed = true
         }
+        // 1.6.3: the Dragon theme was removed; its users go back to Violet.
+        if config.appearance.decoration == "dragon", let violet = Themes.all.first {
+            violet.apply(&config.appearance)
+            config.theme = violet.name
+            changed = true
+        }
         if changed { save(config) }
         return config
     }

@@ -65,17 +65,29 @@ internal static class Themes
             a.PromptColor = "#6EE787";
             a.Decoration = "vines";
         }),
-        new("Dragon", a =>
+        new("Dune", a =>
         {
-            a.Background = ["#4A0A0E", "#2E0508", "#190204"];
-            a.BorderColor = "#C9962B";
-            a.BorderHighlight = "#FFE6A3";
-            a.GlowColor = "#E11D2E";
+            a.Background = ["#5C3418", "#3A200E", "#1E1007"];
+            a.BorderColor = "#C98A4B";
+            a.BorderHighlight = "#FFD8A8";
+            a.GlowColor = "#E8913A";
+            a.GlowOpacity = 0.55;
+            a.TextColor = "#FFF1E0";
+            a.PlaceholderColor = "#B98B66";
+            a.PromptColor = "#F4A259";
+            a.Decoration = "dunes";
+        }),
+        new("Galaxy", a =>
+        {
+            a.Background = ["#140F3A", "#0B0B2A", "#05050F"];
+            a.BorderColor = "#6D5BD0";
+            a.BorderHighlight = "#E0D7FF";
+            a.GlowColor = "#7C3AED";
             a.GlowOpacity = 0.6;
-            a.TextColor = "#FFF4E0";
-            a.PlaceholderColor = "#C49A6C";
-            a.PromptColor = "#F5C542";
-            a.Decoration = "dragon";
+            a.TextColor = "#F5F3FF";
+            a.PlaceholderColor = "#8A84B8";
+            a.PromptColor = "#A78BFA";
+            a.Decoration = "stars";
         }),
     };
 }

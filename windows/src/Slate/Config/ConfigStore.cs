@@ -98,6 +98,13 @@ internal sealed class ConfigStore : IDisposable
             config.ProjectCommand = "claude -c";
             changed = true;
         }
+        // 1.6.3: the Dragon theme was removed; its users go back to Violet.
+        if (config.Appearance.Decoration == "dragon" && Themes.All.Count > 0)
+        {
+            Themes.All[0].Apply(config.Appearance);
+            config.Theme = Themes.All[0].Name;
+            changed = true;
+        }
         return changed;
     }
 
