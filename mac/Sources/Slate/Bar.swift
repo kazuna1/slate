@@ -316,8 +316,16 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         // Built-in shortcut ("cc slate", "vs new airlink"): find the folder, run the command inside it.
         var command = text
         var folder: String?
+
+        // Just a project name ("slate", "slate -c"): run projectCommand (claude) inside it.
+        if let launch = projectLaunch(text) {
+            folder = launch.folder
+            projects.visited(launch.folder, config: config)
+            command = launch.args.isEmpty ? config.projectCommand : "\(config.projectCommand) \(launch.args)"
+        }
+
         let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
-        if let shortcut = config.shortcuts[parts[0]] {
+        if folder == nil, let shortcut = config.shortcuts[parts[0]] {
             var query = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
 
             // Options after the folder go to the command: "cc slate -r" → claude -r, inside slate.
@@ -360,7 +368,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     static func cloneTarget(_ text: String) -> String? {
         let words = text.split(separator: " ").map(String.init)
         let target: String
-        if words.count == 2, words[0] == "gc" { target = words[1] }
+        if words.count == 2, words[0] == "gc" || (words[0] == "clone" && !Commands.isCommand("clone")) { target = words[1] }
         else if words.count == 3, words[0] == "git", words[1] == "clone" { target = words[2] }
         else { return nil }
         let isURLOrPath = target.contains("://") || target.contains("@") || target.hasSuffix(".git")
@@ -488,9 +496,29 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             ghostMatch = match
             suffix = String(match.dropFirst(token.count))
         }
+        // Typing a project name: say what Return will do, e.g. "   → claude in ~/projects/slate".
+        if ghostMatch == nil, caretAtEnd,
+           let launch = projectLaunch(view.input.stringValue.trimmingCharacters(in: .whitespaces)) {
+            suffix = "   → \(config.projectCommand) in \(abbreviatePath(launch.folder))"
+        }
         view.ghost.stringValue = suffix
         view.ghost.isHidden = suffix.isEmpty
         view.layoutGhost()
+    }
+
+    /// "slate" or "slate -c": the project's folder and the options, if the first word is exactly a known
+    /// project name and isn't a shortcut or a real command. Everything after it must be options.
+    private func projectLaunch(_ text: String) -> (folder: String, args: String)? {
+        guard !config.projectCommand.trimmingCharacters(in: .whitespaces).isEmpty,
+              let first = text.first, first != ":", first != "@" else { return nil }
+        let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
+        let name = parts[0]
+        let rest = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+        guard rest.isEmpty || rest.hasPrefix("-"),
+              config.shortcuts[name] == nil, !Commands.isCommand(name),
+              let folder = completer.exactFolder(name) else { return nil }
+        var isDir: ObjCBool = false
+        return FileManager.default.fileExists(atPath: folder, isDirectory: &isDir) && isDir.boolValue ? (folder, rest) : nil
     }
 
     // MARK: Config → visuals

@@ -424,7 +424,12 @@ public partial class MainWindow : Window
         }
 
         Ghost.Text = _ghostMatch?[token.Length..] ?? string.Empty;
-        Ghost.Visibility = _ghostMatch != null ? Visibility.Visible : Visibility.Collapsed;
+
+        // Typing a project name: say what Enter will do, e.g. "   → claude in ~\code\slate".
+        if (_ghostMatch == null && Input.CaretIndex == Input.Text.Length && ProjectLaunch(Input.Text.Trim()) is (string f, _))
+            Ghost.Text = $"   → {_config.ProjectCommand} in {CommandRunner.Abbreviate(f)}";
+
+        Ghost.Visibility = Ghost.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ---------------------------------------------------------------------
@@ -581,9 +586,18 @@ public partial class MainWindow : Window
         // Built-in shortcut ("cc slate", "vs new airlink"): find the folder, run the command inside it.
         string command = text;
         string? folder = null;
+
+        // Just a project name ("slate", "slate -c"): run projectCommand (claude) inside it.
+        if (ProjectLaunch(text) is (string projectFolder, string projectArgs))
+        {
+            folder = projectFolder;
+            _projects.Visited(folder, _config);
+            command = projectArgs.Length == 0 ? _config.ProjectCommand : $"{_config.ProjectCommand} {projectArgs}";
+        }
+
         int space = text.IndexOf(' ');
         string key = space < 0 ? text : text[..space];
-        if (_config.Shortcuts.TryGetValue(key, out var shortcut))
+        if (folder == null && _config.Shortcuts.TryGetValue(key, out var shortcut))
         {
             string query = space < 0 ? string.Empty : text[(space + 1)..].Trim();
 
@@ -633,12 +647,28 @@ public partial class MainWindow : Window
     // GitHub clone
     // ---------------------------------------------------------------------
 
-    /// <summary>The repo in "git clone &lt;name&gt;" or "gc &lt;name&gt;", if it isn't already a URL or path.</summary>
+    /// <summary>
+    /// "slate" or "slate -c": the project's folder and the options, if the first word is exactly a known
+    /// project name and isn't a shortcut or a real command. Everything after it must be options.
+    /// </summary>
+    private (string Folder, string Args)? ProjectLaunch(string text)
+    {
+        if (_config.ProjectCommand.Trim().Length == 0 || text.StartsWith(':') || text.StartsWith('@')) return null;
+        int space = text.IndexOf(' ');
+        string name = space < 0 ? text : text[..space];
+        string rest = space < 0 ? string.Empty : text[(space + 1)..].Trim();
+        if (rest.Length > 0 && !rest.StartsWith('-')) return null;
+        if (_config.Shortcuts.ContainsKey(name) || Commands.IsCommand(name)) return null;
+        string? folder = _completer.ExactFolder(name);
+        return folder != null && System.IO.Directory.Exists(folder) ? (folder, rest) : null;
+    }
+
+    /// <summary>The repo in "git clone &lt;name&gt;", "clone &lt;name&gt;" or "gc &lt;name&gt;", if it isn't already a URL or path.</summary>
     internal static string? CloneTarget(string text)
     {
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         string target;
-        if (words.Length == 2 && words[0] == "gc") target = words[1];
+        if (words.Length == 2 && (words[0] == "gc" || words[0] == "clone" && !Commands.IsCommand("clone"))) target = words[1];
         else if (words.Length == 3 && words[0] == "git" && words[1] == "clone") target = words[2];
         else return null;
         bool urlOrPath = target.Contains("://") || target.Contains('@') || target.EndsWith(".git")

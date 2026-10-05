@@ -22,6 +22,9 @@ struct SlateConfig: Codable {
         "cc": "claude",
         "vs": "@open -a 'Visual Studio Code' .", // "@": runs hidden, no terminal left behind
     ]
+    /// What typing just a project name runs inside it: "slate" → claude, "slate -c" → claude -c.
+    /// Empty turns the feature off. Real commands with the same name always win.
+    var projectCommand = "claude"
     var useZoxide = true
     /// Tab completion also offers every subfolder of these.
     var projectRoots = ["~/projects", "~/Developer", "~/code"]

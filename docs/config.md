@@ -12,6 +12,7 @@ Comments (`//`) and trailing commas are allowed.
   "historySize": 500,
   "checkForUpdates": true,        // check GitHub at startup and daily, offer one-click updates
   "theme": "",                    // last theme picked from the Themes menu
+  "projectCommand": "claude",     // typing just a project name runs this in it ("slate -c")
   "shortcuts": {                  // "<key> <folder>": find the folder, run the command in it
     "z": "",                      //   z slate   → terminal in the slate folder
     "cc": "claude",               //   cc slate  → Claude Code in it
@@ -70,6 +71,16 @@ Slate.exe --render-preview preview.png "cc animu"
 
 Logs go to `%APPDATA%\Slate\slate.log`.
 
+## Just the project name
+
+Type a project's folder name on its own and Slate runs `projectCommand` (default `claude`) inside it:
+`slate` → `claude` in slate, `slate -c` → `claude -c`. Only options (starting with `-`) may follow the name.
+While you type, a grey hint shows what Enter will do: `→ claude in ~/projects/slate`.
+
+It only triggers on an **exact** folder name that is not a real command: programs on your PATH and shell
+builtins always win, so `node` or `code` keep working even if you have folders with those names (use `cc node`).
+Set `"projectCommand": ""` to turn it off, or e.g. `"projectCommand": "@code ."` to open VS Code instead.
+
 ## Shortcuts
 
 `cc slate`, `vs slate` and `z slate` work on any PC or Mac with no setup. Slate finds the folder itself:
@@ -111,7 +122,7 @@ Slate uses your home folder and tells you once.
 
 ## Clone by name
 
-`git clone ladder` (or `gc ladder`) looks `ladder` up among every GitHub repo your `gh` login can see (your own,
+`clone ladder` (or `git clone ladder`, `gc ladder`) looks `ladder` up among every GitHub repo your `gh` login can see (your own,
 ones you collaborate on, and your orgs), clones it into the default folder in a terminal, and leaves you inside it.
 `cc ladder` works right after. Tab completes repo names. If several repos share the name, Slate lists them; type
 `git clone owner/name`. URLs, paths and anything with extra options go to `git` unchanged.

@@ -16,6 +16,7 @@ internal sealed class Completer
 {
     private readonly Projects _projects;
     private IReadOnlyList<string> _names = Array.Empty<string>();
+    private IReadOnlyDictionary<string, string> _folders = new Dictionary<string, string>();
     private int _refreshing;
 
     public Completer(Projects projects) => _projects = projects;
@@ -32,13 +33,14 @@ internal sealed class Completer
             {
                 // Keep the first (highest-ranked) occurrence of each folder name.
                 var names = new List<string>();
-                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var folders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var path in _projects.All(config))
                 {
                     string name = Path.GetFileName(path.TrimEnd('\\', '/'));
-                    if (name.Length > 0 && seen.Add(name)) names.Add(name);
+                    if (name.Length > 0 && folders.TryAdd(name, path)) names.Add(name);
                 }
                 _names = names;
+                _folders = folders;
             }
             catch (Exception ex)
             {
@@ -50,6 +52,9 @@ internal sealed class Completer
             }
         });
     }
+
+    /// <summary>The best-ranked folder whose name is exactly <paramref name="name"/>, from the cached list (instant).</summary>
+    public string? ExactFolder(string name) => _folders.TryGetValue(name, out var path) ? path : null;
 
     /// <summary>Prefix matches first (in rank order), then substring matches.</summary>
     public IReadOnlyList<string> Match(string prefix)

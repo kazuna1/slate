@@ -77,11 +77,13 @@ macOS 13 or later, Apple Silicon and Intel.
 
 | Type | Does |
 |---|---|
-| `cc slate` | Claude Code in your `slate` folder |
+| `slate` | Claude Code in your `slate` folder (just the project name) |
+| `slate -c` | Options pass through: here, `claude -c` in `slate` |
 | `vs slate` | VS Code in it |
 | `z slate` | A terminal in it |
-| `cc slate -r` | Options pass through: here, `claude -r` in `slate` |
-| `git clone ladder` | Finds `ladder` among your GitHub repos and clones it (also `gc ladder`) |
+| `clone ladder` | Finds `ladder` among your GitHub repos and clones it (also `git clone ladder`, `gc ladder`) |
+
+Real commands always win: if a project shares its name with a program (`node`, `code`), use `cc node`.
 
 **Default folder:** commands run, and repos clone, in a folder you choose: tray / menu bar → **Default folder…**, or type `:cd ~/projects`.
 

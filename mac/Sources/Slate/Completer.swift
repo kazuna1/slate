@@ -5,6 +5,7 @@ import Foundation
 final class Completer {
     private let projects: Projects
     private var names: [String] = []
+    private var folders: [String: String] = [:]
     private var refreshing = false
 
     init(projects: Projects) { self.projects = projects }
@@ -17,18 +18,25 @@ final class Completer {
 
         DispatchQueue.global(qos: .userInitiated).async {
             // Keep the first (highest-ranked) occurrence of each folder name.
-            var seen = Set<String>()
+            var folders: [String: String] = [:] // lowercased name → path
             var result: [String] = []
             for path in self.projects.all(config) {
                 let name = (path as NSString).lastPathComponent
-                if !name.isEmpty, !name.hasPrefix("."), seen.insert(name.lowercased()).inserted { result.append(name) }
+                if !name.isEmpty, !name.hasPrefix("."), folders[name.lowercased()] == nil {
+                    folders[name.lowercased()] = path
+                    result.append(name)
+                }
             }
             DispatchQueue.main.async {
                 self.names = result
+                self.folders = folders
                 self.refreshing = false
             }
         }
     }
+
+    /// The best-ranked folder whose name is exactly `name`, from the cached list (instant).
+    func exactFolder(_ name: String) -> String? { folders[name.lowercased()] }
 
     /// Prefix matches first (in rank order), then substring matches.
     func match(_ prefix: String) -> [String] {

@@ -34,6 +34,12 @@ public sealed class SlateConfig
         ["vs"] = "@code .", // "@": runs hidden, no terminal left behind
     };
 
+    /// <summary>
+    /// What typing just a project name runs inside it: "slate" → claude, "slate -c" → claude -c.
+    /// Empty turns the feature off. Real commands with the same name always win.
+    /// </summary>
+    public string ProjectCommand { get; set; } = "claude";
+
     /// <summary>Tab-completion source: folders zoxide knows about (ranked by how often you use them).</summary>
     public bool UseZoxide { get; set; } = true;
 
