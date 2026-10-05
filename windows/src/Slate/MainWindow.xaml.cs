@@ -92,6 +92,7 @@ public partial class MainWindow : Window
         _config = config;
         _history = history;
         _completer = new Completer(_projects);
+        System.Threading.Tasks.Task.Run(() => Commands.IsCommand("")); // scan PATH now, not on the first keystroke
 
         GlowLayer.Effect = _glow;
 
@@ -425,9 +426,9 @@ public partial class MainWindow : Window
 
         Ghost.Text = _ghostMatch?[token.Length..] ?? string.Empty;
 
-        // Typing a project name: say what Enter will do, e.g. "   → claude in ~\code\slate".
-        if (_ghostMatch == null && Input.CaretIndex == Input.Text.Length && ProjectLaunch(Input.Text.Trim()) is (string f, _))
-            Ghost.Text = $"   → {_config.ProjectCommand} in {CommandRunner.Abbreviate(f)}";
+        // Typing a project name: say what Enter will do, e.g. "   → claude -c in ~\code\slate".
+        if (_ghostMatch == null && Input.CaretIndex == Input.Text.Length && ProjectLaunch(Input.Text.Trim()) is (string f, string args))
+            Ghost.Text = $"   → {(_config.ProjectCommand + " " + args).Trim()} in {CommandRunner.Abbreviate(f)}";
 
         Ghost.Visibility = Ghost.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }

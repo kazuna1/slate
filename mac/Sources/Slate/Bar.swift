@@ -60,6 +60,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         apply(config, hotkeyDisplay: hotkeyDisplay)
         completer.refresh(config)
         github.refreshIfStale()
+        DispatchQueue.global(qos: .utility).async { _ = Commands.isCommand("") } // scan PATH now, not on the first keystroke
     }
 
     func show() {
@@ -499,7 +500,8 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         // Typing a project name: say what Return will do, e.g. "   → claude in ~/projects/slate".
         if ghostMatch == nil, caretAtEnd,
            let launch = projectLaunch(view.input.stringValue.trimmingCharacters(in: .whitespaces)) {
-            suffix = "   → \(config.projectCommand) in \(abbreviatePath(launch.folder))"
+            let run = launch.args.isEmpty ? config.projectCommand : "\(config.projectCommand) \(launch.args)"
+            suffix = "   → \(run) in \(abbreviatePath(launch.folder))"
         }
         view.ghost.stringValue = suffix
         view.ghost.isHidden = suffix.isEmpty
