@@ -1,9 +1,12 @@
 import Foundation
 
-/// Finds project folders by name, so "cc slate" works on any Mac with no setup.
-/// Sources, best first: zoxide (if installed), folders you've opened through Slate,
-/// subfolders of `projectRoots`, and git repositories Slate discovers on its own.
-/// Mirrors windows/src/Slate/Projects.cs.
+/// Finds folders by name, so "cc slate" works on any Mac with no setup and no zoxide.
+///
+/// Known folders, ranked first: ones you've opened (through Slate, or in any terminal when "learn from
+/// terminal" is on), ranked by frecency (how often and how recently); zoxide's list if installed;
+/// subfolders of the default folder and `projectRoots`; git repos and their parent folders.
+/// Then every other folder in your home folder (an index rebuilt every few hours), and finally
+/// Spotlight, which knows a folder the moment it's created. Mirrors windows/src/Slate/Projects.cs.
 final class Projects {
     private static let indexURL = Paths.appSupport.appendingPathComponent("projects.json")
     private static let rescanAfter: TimeInterval = 6 * 3600
@@ -12,11 +15,43 @@ final class Projects {
         "Music", "Public", "venv", "__pycache__", "Pods", "DerivedData",
     ]
 
+    private struct Visit: Codable {
+        var count: Double
+        var last: Date
+    }
+
     private struct Index: Codable {
         var scannedAt = Date.distantPast
         var repos: [String] = []
-        /// Folder → times opened through Slate.
-        var used: [String: Int] = [:]
+        /// Every folder in the home folder (not inside repos, packages or junk folders).
+        var folders: [String] = []
+        /// Folder → how often and when it was last opened.
+        var visits: [String: Visit] = [:]
+
+        init() {}
+
+        // Older versions stored "used": [path: count]; missing keys get defaults.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: Keys.self)
+            scannedAt = try c.decodeIfPresent(Date.self, forKey: .scannedAt) ?? .distantPast
+            repos = try c.decodeIfPresent([String].self, forKey: .repos) ?? []
+            folders = try c.decodeIfPresent([String].self, forKey: .folders) ?? []
+            visits = try c.decodeIfPresent([String: Visit].self, forKey: .visits) ?? [:]
+            for (path, count) in try c.decodeIfPresent([String: Int].self, forKey: .used) ?? [:] where visits[path] == nil {
+                visits[path] = Visit(count: Double(count), last: Date().addingTimeInterval(-86400))
+            }
+            if folders.isEmpty { scannedAt = .distantPast } // pre-1.6 index: scan now
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(scannedAt, forKey: .scannedAt)
+            try c.encode(repos, forKey: .repos)
+            try c.encode(folders, forKey: .folders)
+            try c.encode(visits, forKey: .visits)
+        }
+
+        private enum Keys: String, CodingKey { case scannedAt, repos, folders, visits, used }
     }
 
     private let lock = NSLock()
@@ -27,17 +62,22 @@ final class Projects {
         index = (try? JSONDecoder().decode(Index.self, from: Data(contentsOf: Self.indexURL))) ?? Index()
     }
 
+    // MARK: Scanning
+
     /// Kicks off a background rescan if the cached one is stale.
     func refreshIfStale() {
+        ingestTerminalVisits()
         lock.lock()
         defer { lock.unlock() }
         guard !scanning, Date().timeIntervalSince(index.scannedAt) > Self.rescanAfter else { return }
         scanning = true
         DispatchQueue.global(qos: .utility).async {
-            var found: [String] = []
-            Self.walk(URL(fileURLWithPath: NSHomeDirectory()), depth: 4, into: &found)
+            var repos: [String] = []
+            var folders: [String] = []
+            Self.walk(URL(fileURLWithPath: NSHomeDirectory()), depth: 6, repos: &repos, folders: &folders)
             self.lock.lock()
-            self.index.repos = found
+            self.index.repos = repos
+            self.index.folders = folders
             self.index.scannedAt = Date()
             self.scanning = false
             self.save()
@@ -45,34 +85,89 @@ final class Projects {
         }
     }
 
+    private static func walk(_ dir: URL, depth: Int, repos: inout [String], folders: inout [String]) {
+        guard depth >= 0, folders.count < 200_000 else { return }
+        let keys: [URLResourceKey] = [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey]
+        let items = (try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants])) ?? []
+        for item in items {
+            let values = try? item.resourceValues(forKeys: Set(keys))
+            guard values?.isDirectory == true, values?.isSymbolicLink != true, values?.isPackage != true,
+                  !skipDirs.contains(item.lastPathComponent) else { continue }
+            folders.append(item.path)
+            if FileManager.default.fileExists(atPath: item.appendingPathComponent(".git").path) {
+                repos.append(item.path) // a project: don't index its insides
+                continue
+            }
+            walk(item, depth: depth - 1, repos: &repos, folders: &folders)
+        }
+    }
+
+    // MARK: Lookup
+
     /// Best folder for a query like "slate" or "new airlink", or nil.
+    /// The last resort asks Spotlight, which takes a few milliseconds.
     func resolve(_ raw: String, config: SlateConfig) -> String? {
         let query = raw.trimmingCharacters(in: CharacterSet(charactersIn: " '\""))
         guard !query.isEmpty else { return nil }
 
         let path = expandPath(query)
-        var isDir: ObjCBool = false
-        if path.hasPrefix("/"), FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue { return path }
+        if path.hasPrefix("/"), Self.isDirectory(path) { return path }
 
         if config.useZoxide, let z = Zoxide.query(query), Self.isDirectory(z) { return z }
-        return Self.rank(candidates(config), query).first
+
+        // Known folders first, then everything in the index (shallow paths first).
+        lock.lock()
+        let indexed = index.folders.sorted { $0.split(separator: "/").count < $1.split(separator: "/").count }
+        lock.unlock()
+        if let found = Self.rank(candidates(config) + indexed, query).first(where: Self.isDirectory) { return found }
+
+        // A folder created after the last scan: Spotlight already knows it.
+        return Self.spotlight(query)
+    }
+
+    /// The shallowest folder named exactly `name` in the home folder, via Spotlight (always current).
+    private static func spotlight(_ name: String) -> String? {
+        let escaped = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
+        p.arguments = ["-onlyin", NSHomeDirectory(),
+                       "kMDItemFSName == \"\(escaped)\"c && kMDItemContentType == \"public.folder\""]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        do { try p.run() } catch { return nil }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return String(decoding: data, as: UTF8.self).split(separator: "\n").map(String.init)
+            .filter { !$0.contains("/Library/") && !$0.contains("/.") && isDirectory($0) }
+            .min { $0.split(separator: "/").count < $1.split(separator: "/").count }
     }
 
     /// Remembers a folder that was opened, so it ranks higher next time (and tells zoxide too).
     func visited(_ folder: String, config: SlateConfig) {
         lock.lock()
-        index.used[folder, default: 0] += 1
+        bump(folder, at: Date())
         save()
         lock.unlock()
         if config.useZoxide { Zoxide.add(folder) }
     }
 
-    /// All known folders, used folders first. Feeds Tab completion.
+    /// Caller holds the lock.
+    private func bump(_ folder: String, at when: Date) {
+        var v = index.visits[folder] ?? Visit(count: 0, last: .distantPast)
+        v.count += 1
+        if when > v.last { v.last = when }
+        index.visits[folder] = v
+    }
+
+    /// Known folders, best first. Feeds Tab completion and bare project names ("slate").
     func all(_ config: SlateConfig) -> [String] { candidates(config) }
 
     private func candidates(_ config: SlateConfig) -> [String] {
         lock.lock()
-        let used = index.used.sorted { $0.value > $1.value }.map(\.key)
+        let now = Date()
+        let used = index.visits.sorted { Self.frecency($0.value, now) > Self.frecency($1.value, now) }.map(\.key)
         let repos = index.repos
         lock.unlock()
 
@@ -90,6 +185,13 @@ final class Projects {
         return result.filter { seen.insert($0).inserted && Self.isDirectory($0) }
     }
 
+    /// zoxide-style score: visit count weighted by how recent the last visit was.
+    private static func frecency(_ v: Visit, _ now: Date) -> Double {
+        let age = now.timeIntervalSince(v.last)
+        let weight = age < 3600 ? 4.0 : age < 86400 ? 2.0 : age < 7 * 86400 ? 0.5 : 0.25
+        return v.count * weight
+    }
+
     /// Exact name, then prefix, then contains; keeps source order (= rank) within each group.
     private static func rank(_ folders: [String], _ query: String) -> [String] {
         let q = query.lowercased()
@@ -97,23 +199,6 @@ final class Projects {
         var seen = Set<String>()
         return (folders.filter { name($0) == q } + folders.filter { name($0).hasPrefix(q) } + folders.filter { name($0).contains(q) })
             .filter { seen.insert($0).inserted }
-    }
-
-    private static func walk(_ dir: URL, depth: Int, into found: inout [String]) {
-        guard depth >= 0, found.count < 5000 else { return }
-        if FileManager.default.fileExists(atPath: dir.appendingPathComponent(".git").path) {
-            found.append(dir.path)
-            return // don't descend into a repo
-        }
-        let items = (try? FileManager.default.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants])) ?? []
-        for item in items {
-            let values = try? item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey])
-            guard values?.isDirectory == true, values?.isSymbolicLink != true, values?.isPackage != true,
-                  !skipDirs.contains(item.lastPathComponent) else { continue }
-            walk(item, depth: depth - 1, into: &found)
-        }
     }
 
     private static func subfolders(of root: String) -> [String] {
@@ -126,6 +211,27 @@ final class Projects {
     private static func isDirectory(_ path: String) -> Bool {
         var isDir: ObjCBool = false
         return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
+    }
+
+    // MARK: Learning from terminals (ShellHook writes visits.log; we fold it in)
+
+    private func ingestTerminalVisits() {
+        let log = ShellHook.visitsLog
+        let taken = log.appendingPathExtension("reading")
+        guard FileManager.default.fileExists(atPath: log.path) else { return }
+        try? FileManager.default.removeItem(at: taken)
+        guard (try? FileManager.default.moveItem(at: log, to: taken)) != nil,
+              let text = try? String(contentsOf: taken, encoding: .utf8) else { return }
+        try? FileManager.default.removeItem(at: taken)
+        lock.lock()
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: "\t", maxSplits: 1)
+            guard parts.count == 2, let unix = Double(parts[0]) else { continue }
+            let path = String(parts[1])
+            if path.count > 1, Self.isDirectory(path) { bump(path, at: Date(timeIntervalSince1970: unix)) }
+        }
+        save()
+        lock.unlock()
     }
 
     /// Caller holds the lock.

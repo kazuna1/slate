@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var showItem: NSMenuItem!
     private var themesMenu: NSMenu!
     private var folderItem: NSMenuItem!
+    private var learnItem: NSMenuItem!
     private var warnedMissingFolder: String?
 
     private var update: UpdateInfo?
@@ -120,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         themesMenu = NSMenu()
         themesItem.submenu = themesMenu
         folderItem = menu.addItem(withTitle: "Default Folder…", action: #selector(menuDefaultFolder), keyEquivalent: "")
+        learnItem = menu.addItem(withTitle: "Learn Folders from Terminal", action: #selector(menuToggleLearn), keyEquivalent: "")
         loginItem = menu.addItem(withTitle: "Launch at Login", action: #selector(menuToggleLogin), keyEquivalent: "")
         updateItem = menu.addItem(withTitle: "Check for Updates…", action: #selector(menuUpdate), keyEquivalent: "")
         menu.addItem(.separator())
@@ -157,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         folderItem.title = "Default Folder: \(abbreviatePath(CommandRunner.workingDirectory(config.workingDirectory)))…"
         rebuildThemesMenu()
+        learnItem.state = ShellHook.isInstalled ? .on : .off
         switch LoginItem.status {
         case .enabled: loginItem.state = .on
         case .requiresApproval: loginItem.state = .mixed
@@ -189,6 +192,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func menuDefaultFolder() { chooseDefaultFolder() }
+    @objc private func menuToggleLearn() { setLearn(!ShellHook.isInstalled) }
+
+    /// Adds or removes the "learn from terminal" block in ~/.zshrc (and ~/.bashrc).
+    private func setLearn(_ on: Bool) {
+        do {
+            if on { try ShellHook.install() } else { try ShellHook.remove() }
+            notifier.post("Slate", on
+                ? "Slate now learns every folder you cd into (new terminals). Turn off from the menu or :learn off."
+                : "Slate no longer learns from your terminals. Its block was removed from .zshrc.")
+        } catch {
+            Log.error("Changing terminal learning", error)
+            notifier.post("Slate", "Couldn't change your shell config: \(error.localizedDescription)")
+        }
+    }
 
     // MARK: Default folder
 
@@ -302,6 +319,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             changeDirectory(rawArg) // paths are case-sensitive
             return
         }
+        if cmd == "learn", arg == "on" || arg == "off" {
+            setLearn(arg == "on")
+            return
+        }
 
         switch (cmd, arg) {
         case ("exit", _), ("quit", _): NSApp.terminate(nil)
@@ -312,7 +333,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case ("history", "clear"): history.clear(); notifier.post("Slate", "History cleared.")
         case ("autostart", "on"): setLoginItem(true)
         case ("autostart", "off"): setLoginItem(false)
-        case ("help", _): notifier.post("Slate commands", ":cd <folder>  :config  :reload  :update  :version  :autostart on|off  :history clear  :exit")
+        case ("help", _): notifier.post("Slate commands", ":cd <folder>  :learn on|off  :config :reload  :update  :version  :autostart on|off  :history clear  :exit")
         default: notifier.post("Slate", "Unknown command \"\(text)\". Try :help")
         }
     }

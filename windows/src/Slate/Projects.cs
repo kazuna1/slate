@@ -12,9 +12,13 @@ using Slate.Config;
 namespace Slate;
 
 /// <summary>
-/// Finds project folders by name, so "cc slate" works on any PC with no setup.
-/// Sources, best first: zoxide (if installed), folders you've opened through Slate,
-/// subfolders of <c>projectRoots</c>, and git repositories Slate discovers on its own.
+/// Finds folders by name, so "cc slate" works on any PC with no setup and no zoxide.
+///
+/// Known folders, ranked first: ones you've opened (through Slate, or in any terminal when "learn from
+/// terminal" is on), ranked by frecency (how often and how recently); zoxide's list if installed;
+/// subfolders of the default folder and <c>projectRoots</c>; git repos and their parent folders.
+/// Then every other folder on your drives, from an index kept live by file-system watchers, so a
+/// folder you created a second ago is found on the first try.
 /// </summary>
 internal sealed class Projects
 {
@@ -25,45 +29,66 @@ internal sealed class Projects
         "node_modules", "bin", "obj", "dist", "build", "target", "packages", ".git", ".vs", ".idea",
         "AppData", "Windows", "Program Files", "Program Files (x86)", "ProgramData", "$Recycle.Bin",
         "System Volume Information", "Recovery", "PerfLogs", "OneDriveTemp", "venv", ".venv", "__pycache__",
+        ".next", ".cache", ".nuget", ".gradle",
     };
 
     private readonly object _lock = new();
     private Index _index;
     private int _scanning;
+    private readonly List<FileSystemWatcher> _watchers = [];
+
+    private sealed class Visit
+    {
+        public double Count { get; set; }
+        public DateTime Last { get; set; }
+    }
 
     private sealed class Index
     {
         public DateTime ScannedAt { get; set; }
         public List<string> Repos { get; set; } = [];
-        /// <summary>Folder → times opened through Slate.</summary>
-        public Dictionary<string, int> Used { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Every folder on the scanned drives (not inside repos or junk folders).</summary>
+        public List<string> Folders { get; set; } = [];
+        /// <summary>Folder → how often and when it was last opened.</summary>
+        public Dictionary<string, Visit> Visits { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Pre-1.6 visit counts; migrated into <see cref="Visits"/> on load.</summary>
+        public Dictionary<string, int>? Used { get; set; }
     }
 
     public Projects()
     {
         _index = Load();
+        StartWatching();
     }
+
+    // ---------------------------------------------------------------------
+    // Scanning and watching
+    // ---------------------------------------------------------------------
 
     /// <summary>Kicks off a background rescan if the cached one is stale.</summary>
     public void RefreshIfStale()
     {
+        IngestTerminalVisits();
         if (DateTime.UtcNow - _index.ScannedAt < RescanAfter) return;
         if (Interlocked.Exchange(ref _scanning, 1) == 1) return;
         Task.Run(() =>
         {
             try
             {
-                var repos = DiscoverRepos();
+                var repos = new List<string>();
+                var folders = new List<string>();
+                foreach (var (root, depth) in Roots()) Walk(root, depth, repos, folders);
                 lock (_lock)
                 {
                     _index.Repos = repos;
+                    _index.Folders = folders;
                     _index.ScannedAt = DateTime.UtcNow;
                     Save();
                 }
             }
             catch (Exception ex)
             {
-                Log.Error("Scanning for projects", ex);
+                Log.Error("Scanning folders", ex);
             }
             finally
             {
@@ -71,6 +96,112 @@ internal sealed class Projects
             }
         });
     }
+
+    /// <summary>Your home folder, and every other fixed drive.</summary>
+    private static IEnumerable<(string Root, int Depth)> Roots()
+    {
+        yield return (Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 6);
+        string systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            if (drive.DriveType != DriveType.Fixed || !drive.IsReady) continue;
+            if (drive.RootDirectory.FullName.Equals(systemDrive, StringComparison.OrdinalIgnoreCase)) continue;
+            yield return (drive.RootDirectory.FullName, 7);
+        }
+    }
+
+    private static void Walk(string dir, int depth, List<string> repos, List<string> folders)
+    {
+        if (depth < 0 || folders.Count > 200_000) return;
+        try
+        {
+            foreach (var sub in Directory.EnumerateDirectories(dir))
+            {
+                if (Skip(sub)) continue;
+                folders.Add(sub);
+                if (Directory.Exists(Path.Combine(sub, ".git")))
+                {
+                    repos.Add(sub); // a project: don't index its insides (src, docs, ...)
+                    continue;
+                }
+                Walk(sub, depth - 1, repos, folders);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // unreadable folder: skip
+        }
+    }
+
+    private static bool Skip(string path)
+    {
+        string name = Path.GetFileName(path);
+        if (name.StartsWith('.') || name.StartsWith('$') || SkipDirs.Contains(name)) return true;
+        try
+        {
+            return (File.GetAttributes(path) & (FileAttributes.ReparsePoint | FileAttributes.System | FileAttributes.Hidden)) != 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>Keeps the folder index current: new, renamed and deleted folders show up instantly.</summary>
+    private void StartWatching()
+    {
+        foreach (var (root, _) in Roots())
+        {
+            try
+            {
+                var w = new FileSystemWatcher(root)
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.DirectoryName,
+                    InternalBufferSize = 64 * 1024,
+                };
+                w.Created += (_, e) => OnFolderAdded(e.FullPath);
+                w.Deleted += (_, e) => OnFolderRemoved(e.FullPath);
+                w.Renamed += (_, e) =>
+                {
+                    OnFolderRemoved(e.OldFullPath);
+                    OnFolderAdded(e.FullPath);
+                };
+                w.Error += (_, _) => { lock (_lock) _index.ScannedAt = DateTime.MinValue; }; // overflow: rescan next time
+                w.EnableRaisingEvents = true;
+                _watchers.Add(w);
+            }
+            catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+            {
+                Log.Error($"Watching {root}", ex);
+            }
+        }
+    }
+
+    private void OnFolderAdded(string path)
+    {
+        // Ignore anything under a junk or hidden folder (AppData churns constantly).
+        foreach (var part in path.Split(Path.DirectorySeparatorChar))
+            if (part.StartsWith('.') || part.StartsWith('$') || SkipDirs.Contains(part)) return;
+        if (!Directory.Exists(path)) return; // a file, or already gone
+        lock (_lock)
+        {
+            if (!_index.Folders.Contains(path, StringComparer.OrdinalIgnoreCase)) _index.Folders.Add(path);
+        }
+    }
+
+    private void OnFolderRemoved(string path)
+    {
+        lock (_lock)
+        {
+            _index.Folders.RemoveAll(f => f.Equals(path, StringComparison.OrdinalIgnoreCase)
+                                          || f.StartsWith(path + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Lookup
+    // ---------------------------------------------------------------------
 
     /// <summary>Best folder for a query like "slate" or "new airlink", or null.</summary>
     public string? Resolve(string query, SlateConfig config)
@@ -84,7 +215,13 @@ internal sealed class Projects
 
         if (config.UseZoxide && Zoxide.Query(query) is string z && Directory.Exists(z)) return z;
 
-        return Rank(Candidates(config), query).FirstOrDefault();
+        // Known folders first, then everything in the index (shallow paths first).
+        List<string> indexed;
+        lock (_lock)
+        {
+            indexed = _index.Folders.OrderBy(f => f.Count(c => c == Path.DirectorySeparatorChar)).ToList();
+        }
+        return Rank(Candidates(config).Concat(indexed).ToList(), query).FirstOrDefault(Directory.Exists);
     }
 
     /// <summary>Remembers a folder that was opened, so it ranks higher next time (and tells zoxide too).</summary>
@@ -92,13 +229,21 @@ internal sealed class Projects
     {
         lock (_lock)
         {
-            _index.Used[folder] = _index.Used.GetValueOrDefault(folder) + 1;
+            Bump(folder, DateTime.UtcNow);
             Save();
         }
         if (config.UseZoxide) Zoxide.Add(folder);
     }
 
-    /// <summary>All known folders, used folders first. Feeds Tab completion.</summary>
+    /// <summary>Caller holds the lock.</summary>
+    private void Bump(string folder, DateTime when)
+    {
+        if (!_index.Visits.TryGetValue(folder, out var v)) _index.Visits[folder] = v = new Visit();
+        v.Count++;
+        if (when > v.Last) v.Last = when;
+    }
+
+    /// <summary>Known folders, best first. Feeds Tab completion and bare project names ("slate").</summary>
     public IEnumerable<string> All(SlateConfig config) => Candidates(config);
 
     private List<string> Candidates(SlateConfig config)
@@ -106,7 +251,8 @@ internal sealed class Projects
         var result = new List<string>();
         lock (_lock)
         {
-            result.AddRange(_index.Used.OrderByDescending(kv => kv.Value).Select(kv => kv.Key));
+            var now = DateTime.UtcNow;
+            result.AddRange(_index.Visits.OrderByDescending(kv => Frecency(kv.Value, now)).Select(kv => kv.Key));
         }
         if (config.UseZoxide) result.AddRange(Zoxide.List());
         foreach (var root in config.ProjectRoots) result.AddRange(Subfolders(root));
@@ -124,6 +270,14 @@ internal sealed class Projects
         return result.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    /// <summary>zoxide-style score: visit count weighted by how recent the last visit was.</summary>
+    private static double Frecency(Visit v, DateTime now)
+    {
+        var age = now - v.Last;
+        double weight = age < TimeSpan.FromHours(1) ? 4 : age < TimeSpan.FromDays(1) ? 2 : age < TimeSpan.FromDays(7) ? 0.5 : 0.25;
+        return v.Count * weight;
+    }
+
     /// <summary>Exact name, then prefix, then contains; keeps source order (= rank) within each group.</summary>
     private static IEnumerable<string> Rank(List<string> folders, string query)
     {
@@ -132,48 +286,6 @@ internal sealed class Projects
         var prefix = folders.Where(f => Name(f).StartsWith(query, StringComparison.OrdinalIgnoreCase));
         var contains = folders.Where(f => Name(f).Contains(query, StringComparison.OrdinalIgnoreCase));
         return exact.Concat(prefix).Concat(contains).Distinct(StringComparer.OrdinalIgnoreCase);
-    }
-
-    /// <summary>Git repositories under your home folder and every non-system drive.</summary>
-    private static List<string> DiscoverRepos()
-    {
-        var found = new List<string>();
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        Walk(home, 4, found);
-
-        string systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
-        foreach (var drive in DriveInfo.GetDrives())
-        {
-            if (drive.DriveType != DriveType.Fixed || !drive.IsReady) continue;
-            if (drive.RootDirectory.FullName.Equals(systemDrive, StringComparison.OrdinalIgnoreCase)) continue;
-            Walk(drive.RootDirectory.FullName, 5, found);
-        }
-        return found;
-    }
-
-    private static void Walk(string dir, int depth, List<string> found)
-    {
-        if (depth < 0 || found.Count > 5000) return;
-        try
-        {
-            if (Directory.Exists(Path.Combine(dir, ".git")))
-            {
-                found.Add(dir);
-                return; // don't descend into a repo
-            }
-            foreach (var sub in Directory.EnumerateDirectories(dir))
-            {
-                string name = Path.GetFileName(sub);
-                if (name.StartsWith('.') || SkipDirs.Contains(name)) continue;
-                var attrs = File.GetAttributes(sub);
-                if ((attrs & (FileAttributes.ReparsePoint | FileAttributes.System)) != 0) continue;
-                Walk(sub, depth - 1, found);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // unreadable folder: skip
-        }
     }
 
     private static IEnumerable<string> Subfolders(string root)
@@ -189,12 +301,59 @@ internal sealed class Projects
         }
     }
 
+    // ---------------------------------------------------------------------
+    // Learning from terminals (ShellHook writes visits.log; we fold it in)
+    // ---------------------------------------------------------------------
+
+    private void IngestTerminalVisits()
+    {
+        string log = ShellHook.VisitsLog;
+        string taken = log + ".reading";
+        try
+        {
+            if (!File.Exists(log)) return;
+            File.Move(log, taken, overwrite: true); // shells start a fresh file on their next cd
+            var lines = File.ReadAllLines(taken);
+            File.Delete(taken);
+            lock (_lock)
+            {
+                foreach (var line in lines)
+                {
+                    int tab = line.IndexOf('\t');
+                    if (tab <= 0 || !long.TryParse(line[..tab], out long unix)) continue;
+                    string path = line[(tab + 1)..].Trim();
+                    if (path.Length > 3 && Directory.Exists(path)) Bump(path, DateTimeOffset.FromUnixTimeSeconds(unix).UtcDateTime);
+                }
+                Save();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // a shell is writing right now: next time
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Persistence
+    // ---------------------------------------------------------------------
+
     private static Index Load()
     {
         try
         {
             if (File.Exists(IndexPath))
-                return JsonSerializer.Deserialize<Index>(File.ReadAllText(IndexPath)) ?? new Index();
+            {
+                var index = JsonSerializer.Deserialize<Index>(File.ReadAllText(IndexPath)) ?? new Index();
+                index.Visits = new Dictionary<string, Visit>(index.Visits, StringComparer.OrdinalIgnoreCase);
+                if (index.Used != null)
+                {
+                    foreach (var (path, count) in index.Used)
+                        index.Visits.TryAdd(path, new Visit { Count = count, Last = DateTime.UtcNow.AddDays(-1) });
+                    index.Used = null;
+                }
+                if (index.Folders.Count == 0) index.ScannedAt = DateTime.MinValue; // pre-1.6 index: scan now
+                return index;
+            }
         }
         catch (Exception ex) when (ex is IOException or JsonException)
         {
@@ -203,6 +362,7 @@ internal sealed class Projects
         return new Index();
     }
 
+    /// <summary>Caller holds the lock.</summary>
     private void Save()
     {
         try

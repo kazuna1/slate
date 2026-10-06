@@ -79,7 +79,8 @@ public partial class App : Application
 
         _tray = new TrayIcon(() => _bar.Summon(), OpenConfig, Reload, () => _ = UpdateNowAsync(), Quit,
             () => _config.Theme, ApplyTheme,
-            () => CommandRunner.Abbreviate(CommandRunner.ResolveWorkingDirectory(_config.WorkingDirectory)), ChooseDefaultFolder);
+            () => CommandRunner.Abbreviate(CommandRunner.ResolveWorkingDirectory(_config.WorkingDirectory)), ChooseDefaultFolder,
+            SetLearn);
 
         try
         {
@@ -276,11 +277,14 @@ public partial class App : Application
             case "cd":
                 ChangeDirectory(rawArg);
                 return;
+            case "learn" when arg is "on" or "off":
+                SetLearn(arg == "on");
+                return;
             case "version":
                 Notify("Slate", $"Version {Updater.CurrentVersion.ToString(3)}");
                 return;
             case "help":
-                Notify("Slate commands", ":cd <folder>  :config  :reload  :update  :version  :autostart on|off  :history clear  :exit");
+                Notify("Slate commands", ":cd <folder>  :learn on|off  :config :reload  :update  :version  :autostart on|off  :history clear  :exit");
                 return;
             default:
                 Notify("Slate", $"Unknown command \"{text}\". Try :help");
@@ -344,6 +348,23 @@ public partial class App : Application
         _warnedMissingFolder = setting;
         Notify("Default folder not found", $"{setting} is missing, so commands run in your home folder. Click to choose another.",
             ChooseDefaultFolder);
+    }
+
+    /// <summary>Adds or removes the "learn from terminal" block in your PowerShell profile.</summary>
+    private void SetLearn(bool on)
+    {
+        try
+        {
+            if (on) ShellHook.Install(); else ShellHook.Remove();
+            Notify("Slate", on
+                ? "Slate now learns every folder you cd into (new terminals). Turn off from the tray or :learn off."
+                : "Slate no longer learns from your terminals. Its block was removed from your PowerShell profile.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Error("Changing terminal learning", ex);
+            Notify("Slate", $"Couldn't change your PowerShell profile: {ex.Message}");
+        }
     }
 
     private void OpenConfig()

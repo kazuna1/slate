@@ -114,11 +114,24 @@ Globs (`rm *.log`) and anything interactive (`claude`, `vim`, `ssh`, servers) al
 `cc slate`, `vs slate` and `z slate` work on any PC or Mac with no setup. Slate finds the folder itself:
 
 1. A full path, if you type one.
-2. [zoxide](https://github.com/ajeetdsouza/zoxide), if installed (best ranking, learns from every `cd`).
-3. Folders you've opened through Slate before, most used first.
-4. Subfolders of `projectRoots`.
-5. Git repositories Slate finds on its own, plus the folders that contain them. It scans your home folder and
-   every other fixed drive (on Windows) in the background at most every 6 hours, and keeps the list in `projects.json`.
+2. [zoxide](https://github.com/ajeetdsouza/zoxide), if installed. Optional: Slate does all of the below without it.
+3. Folders you've opened, ranked by **frecency** (how often *and* how recently): through Slate, and in any
+   terminal if **Learn folders from terminal** is on (see below).
+4. Subfolders of your default folder and of `projectRoots`.
+5. Git repositories Slate finds on its own, plus the folders that contain them.
+6. **Every other folder** on your drives. Slate keeps an index of them (your home folder, plus every other fixed
+   drive on Windows), rescanned every 6 hours and kept live as you create, rename or delete folders
+   (file-system watchers on Windows; on macOS, Spotlight is asked for anything created since the last scan).
+   So a folder you made a second ago works on the first try: `z my-new-folder`.
+
+Within each step, an exact folder name beats a prefix, which beats a partial match. Typing just a project name
+(`slate`) only uses steps 3–5, so a random folder somewhere can't take over a word you meant as a command.
+
+### Learn folders from terminal
+
+Off by default. Tray (Windows) / ❯ menu (macOS) → **Learn folders from terminal**, or `:learn on`. Slate adds a
+small, clearly marked block to your PowerShell profile (Windows) or `~/.zshrc` / `~/.bashrc` (macOS) that notes
+each folder you `cd` into, the way zoxide learns. `:learn off` removes exactly that block. New terminals pick it up.
 
 Options after the folder name go to the command: `cc slate -r` runs `claude -r` in `slate`,
 `cc slate -c` continues the last conversation, `vs slate --new-window` opens a new VS Code window,

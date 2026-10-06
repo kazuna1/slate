@@ -23,5 +23,5 @@ launch needs **System Settings → Privacy & Security → Open Anyway**. Then pr
 - Always-on command bar on the desktop that survives Win + D
 - Win + Space (⌥ Space on macOS) to summon, Enter runs the command in a terminal that stays open
 - Your shell profile is loaded (PowerShell on Windows, zsh on macOS), so your own shortcuts work
-- Tab completion of folder names from zoxide, ↑/↓ history
+- Finds any folder by name (no zoxide needed), Tab completion, ↑/↓ history
 - Fully themeable via `config.json` (live reload), with glow and animations

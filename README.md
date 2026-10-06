@@ -20,7 +20,7 @@ Press **Win + Space** (or **⌥ Space** on a Mac) anywhere, type a command, hit 
 - **Always there.** Sits on your desktop and stays put through Win + D / Show Desktop.
 - **Instant.** One hotkey from any app, and you're typing straight into the bar.
 - **Runs anything.** Any command in your own shell (PowerShell or zsh), with your profile loaded, so your shortcuts work.
-- **Smart.** Tab completes folder names (via [zoxide](https://github.com/ajeetdsouza/zoxide) and your project folders), and ↑ / ↓ brings back your history.
+- **Smart.** Finds any folder by name, even one you just created, with no zoxide needed. It learns what you use most, Tab completes names, and ↑ / ↓ brings back your history.
 - **Yours.** Colors, size, glow, font, hotkey and animations are all configurable, and changes apply live.
 - **Up to date.** Tells you when a new version is out and updates itself in one click.
 
