@@ -98,6 +98,9 @@ jobs:
           security unlock-keychain -p ci "$KC"
           security import "$RUNNER_TEMP/slate.p12" -k "$KC" -P "$PASS" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KC" > /dev/null
+          # codesign only looks in keychains on the search list.
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-identity -p codesigning "$KC"
           rm "$RUNNER_TEMP/slate.p12"
           echo "SLATE_SIGN_IDENTITY=Slate Code Signing" >> "$GITHUB_ENV"
           echo "SLATE_SIGN_KEYCHAIN=$KC" >> "$GITHUB_ENV"
