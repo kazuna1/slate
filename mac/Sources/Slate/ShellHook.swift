@@ -51,7 +51,8 @@ enum ShellHook {
             let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             guard !text.contains(begin) else { continue }
             let sep = text.isEmpty || text.hasSuffix("\n") ? "" : "\n"
-            try (text + sep + "\n" + block + "\n").write(to: url, atomically: true, encoding: .utf8)
+            // Not atomic: an atomic write would replace a symlinked ~/.zshrc (dotfile setups) with a plain file.
+            try (text + sep + "\n" + block + "\n").write(to: url, atomically: false, encoding: .utf8)
         }
     }
 
@@ -63,7 +64,7 @@ enum ShellHook {
             var tail = String(text[stop.upperBound...])
             while head.hasSuffix("\n") { head.removeLast() }
             while tail.hasPrefix("\n") { tail.removeFirst() }
-            try (head + (head.isEmpty ? "" : "\n") + tail).write(to: url, atomically: true, encoding: .utf8)
+            try (head + (head.isEmpty ? "" : "\n") + tail).write(to: url, atomically: false, encoding: .utf8)
         }
     }
 }

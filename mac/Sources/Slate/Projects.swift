@@ -14,6 +14,10 @@ final class Projects {
         "node_modules", "bin", "obj", "dist", "build", "target", "Library", "Applications", "Pictures", "Movies",
         "Music", "Public", "venv", "__pycache__", "Pods", "DerivedData",
     ]
+    /// macOS privacy-protected folders: reading them from the background scan makes macOS ask for permission
+    /// ("Slate would like to access files in your Documents folder"). Projects in them are still found by
+    /// name through Spotlight when you ask for one.
+    private static let protectedDirs: Set<String> = ["Desktop", "Documents", "Downloads"]
 
     private struct Visit: Codable {
         var count: Double
@@ -74,7 +78,9 @@ final class Projects {
         DispatchQueue.global(qos: .utility).async {
             var repos: [String] = []
             var folders: [String] = []
-            Self.walk(URL(fileURLWithPath: NSHomeDirectory()), depth: 6, repos: &repos, folders: &folders)
+            Self.walk(URL(fileURLWithPath: NSHomeDirectory()), depth: 6, repos: &repos, folders: &folders, top: true)
+            // Shallow paths first, sorted once here instead of on every lookup.
+            folders = folders.map { ($0, $0.split(separator: "/").count) }.sorted { $0.1 < $1.1 }.map(\.0)
             self.lock.lock()
             self.index.repos = repos
             self.index.folders = folders
@@ -85,7 +91,7 @@ final class Projects {
         }
     }
 
-    private static func walk(_ dir: URL, depth: Int, repos: inout [String], folders: inout [String]) {
+    private static func walk(_ dir: URL, depth: Int, repos: inout [String], folders: inout [String], top: Bool = false) {
         guard depth >= 0, folders.count < 200_000 else { return }
         let keys: [URLResourceKey] = [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey]
         let items = (try? FileManager.default.contentsOfDirectory(
@@ -93,7 +99,8 @@ final class Projects {
         for item in items {
             let values = try? item.resourceValues(forKeys: Set(keys))
             guard values?.isDirectory == true, values?.isSymbolicLink != true, values?.isPackage != true,
-                  !skipDirs.contains(item.lastPathComponent) else { continue }
+                  !skipDirs.contains(item.lastPathComponent),
+                  !(top && protectedDirs.contains(item.lastPathComponent)) else { continue }
             folders.append(item.path)
             if FileManager.default.fileExists(atPath: item.appendingPathComponent(".git").path) {
                 repos.append(item.path) // a project: don't index its insides
@@ -116,9 +123,9 @@ final class Projects {
 
         if config.useZoxide, let z = Zoxide.query(query), Self.isDirectory(z) { return z }
 
-        // Known folders first, then everything in the index (shallow paths first).
+        // Known folders first, then everything in the index (already shallow-first).
         lock.lock()
-        let indexed = index.folders.sorted { $0.split(separator: "/").count < $1.split(separator: "/").count }
+        let indexed = index.folders
         lock.unlock()
         if let found = Self.rank(candidates(config) + indexed, query).first(where: Self.isDirectory) { return found }
 

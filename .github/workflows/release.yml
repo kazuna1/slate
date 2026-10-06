@@ -83,6 +83,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A fixed self-signed certificate (secrets MAC_SIGN_P12 + MAC_SIGN_PASSWORD) keeps Slate's identity the
+      # same across versions, so macOS remembers permissions. Skipped (ad-hoc signing) if the secrets are missing.
+      - name: Import signing certificate
+        env:
+          P12: ${{ secrets.MAC_SIGN_P12 }}
+          PASSWORD: ${{ secrets.MAC_SIGN_PASSWORD }}
+        run: |
+          if [ -z "$P12" ]; then echo "No signing secrets: ad-hoc signing"; exit 0; fi
+          KC="$RUNNER_TEMP/slate.keychain-db"
+          PASS=$(printf %s "$PASSWORD" | tr -d '\r\n')
+          printf %s "$P12" | base64 --decode > "$RUNNER_TEMP/slate.p12"
+          security create-keychain -p ci "$KC"
+          security unlock-keychain -p ci "$KC"
+          security import "$RUNNER_TEMP/slate.p12" -k "$KC" -P "$PASS" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KC" > /dev/null
+          rm "$RUNNER_TEMP/slate.p12"
+          echo "SLATE_SIGN_IDENTITY=Slate Code Signing" >> "$GITHUB_ENV"
+          echo "SLATE_SIGN_KEYCHAIN=$KC" >> "$GITHUB_ENV"
+
       - name: Build Slate.app
         run: ./mac/build.sh
 

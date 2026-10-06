@@ -53,6 +53,9 @@ the other platform can get it too.
   (breaks `package.json`), multi-line `git commit -m` can fail silently; use `git commit -F <file>`.
 - The Windows checkout uses CRLF, so scripted edits matching `\n` miss. Prefer the Edit tool.
 - macOS can't show Slate's notifications (not notarized); messages fall back to the bar itself.
+- macOS signing: release builds use a fixed self-signed certificate (repo secrets MAC_SIGN_P12 / MAC_SIGN_PASSWORD,
+  backup in ~/.slate-signing on the Mac) so macOS keeps granted permissions across updates. Never commit the .p12.
+  The background folder scan must not read ~/Desktop, ~/Documents or ~/Downloads (each triggers a privacy prompt).
 - The bar must never look focused while keys go elsewhere; focus is always verified after summoning.
 - Don't send keystrokes or move windows on the user's desktop to test; ask the user to try it.
 
