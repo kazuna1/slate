@@ -93,6 +93,8 @@ starting with `@`. **Shift+Enter** opens a terminal instead.
 
 **Default folder:** commands run, and repos clone, in a folder you choose: tray / menu bar → **Default folder…**, or type `:cd ~/projects`.
 
+On first launch Slate shows a **theme gallery** (Violet, Dark, Light, Forest, Dune, Galaxy); pick one and Slate starts in it. Open it again any time with `:themes`.
+
 Type `:config` in the bar to customize it, or `:help` for the other built-in commands.
 The full reference is in [docs/config.md](docs/config.md).
 

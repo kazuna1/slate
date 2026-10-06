@@ -8,6 +8,8 @@ import Foundation
 /// Then every other folder in your home folder (an index rebuilt every few hours), and finally
 /// Spotlight, which knows a folder the moment it's created. Mirrors windows/src/Slate/Projects.cs.
 final class Projects {
+    static let shared = Projects()
+
     private static let indexURL = Paths.appSupport.appendingPathComponent("projects.json")
     private static let rescanAfter: TimeInterval = 6 * 3600
     private static let skipDirs: Set<String> = [

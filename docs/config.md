@@ -174,7 +174,7 @@ right away, so a repo you just created clones immediately.
 
 ## Themes
 
-**Themes** in the tray / menu-bar menu applies a ready-made look by rewriting the `appearance` colors in your config:
+**Themes → Theme gallery…** in the tray / menu-bar menu (or `:themes`) shows every theme as a real bar; click one to use it. The gallery also opens on first launch. **Themes** in the menu applies a ready-made look by rewriting the `appearance` colors in your config:
 **Violet** (the original), **Dark**, **Light**, **Forest** (deep greens with winding vines and leaves), **Dune** (desert dusk: rolling sand dunes, a hazy sun, wind streaks) and **Galaxy** (deep space: stars, sparkles and a faint nebula). Preview one without applying it:
 `Slate.exe --render-preview out.png "vs slate" Light` (Windows).
 Themes are defined in `windows/src/Slate/Themes.cs` (Windows) and `mac/Sources/Slate/Themes.swift` (macOS); add one entry to each list.

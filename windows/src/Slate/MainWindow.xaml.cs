@@ -66,8 +66,9 @@ public partial class MainWindow : Window
     private double _barHeight;
 
     // Completion: Tab/Shift+Tab cycle through matches for the last word; ghost text previews the first.
-    private readonly Projects _projects = new();
-    private readonly GitHubRepos _github = new();
+    // Shared by every bar (the real one and theme previews): one folder index, one repo list.
+    private readonly Projects _projects = Projects.Shared;
+    private readonly GitHubRepos _github = GitHubRepos.Shared;
     private readonly Completer _completer;
     private bool _dismissedShellFlyout;
     private IReadOnlyList<string> _cycle = Array.Empty<string>();
@@ -1196,6 +1197,15 @@ public partial class MainWindow : Window
     /// </summary>
     internal void RenderPreview(string path, string text, Color backdrop)
     {
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(RenderBitmap(text, backdrop)));
+        using var file = System.IO.File.Create(path);
+        encoder.Save(file);
+    }
+
+    /// <summary>The bar as a bitmap (2x), as it looks when summoned, on a backdrop. Used by the theme gallery.</summary>
+    internal System.Windows.Media.Imaging.BitmapSource RenderBitmap(string text, Color backdrop)
+    {
         var a = _config.Appearance;
 
         // Freeze every animation at a flattering frame.
@@ -1218,6 +1228,9 @@ public partial class MainWindow : Window
         Root.Measure(size);
         Root.Arrange(new Rect(size));
         Root.UpdateLayout();
+        // The decoration is drawn once the bar has a size; lay out again so it's in the picture.
+        DrawDecoration();
+        Root.UpdateLayout();
 
         const double scale = 2; // crisp on high-DPI screens and GitHub
         var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
@@ -1228,11 +1241,8 @@ public partial class MainWindow : Window
             dc.DrawRectangle(new SolidColorBrush(backdrop), null, new Rect(size));
         rtb.Render(background);
         rtb.Render(Root);
-
-        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
-        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
-        using var file = System.IO.File.Create(path);
-        encoder.Save(file);
+        rtb.Freeze();
+        return rtb;
     }
 
     private void AnimateState(bool active, bool pop)

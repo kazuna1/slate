@@ -4,6 +4,8 @@ import Foundation
 /// so "git clone ladder" works without a URL. Cached in repos.json, refreshed in the background.
 /// Mirrors windows/src/Slate/GitHub.cs.
 final class GitHubRepos {
+    static let shared = GitHubRepos()
+
     private static let cacheURL = Paths.appSupport.appendingPathComponent("repos.json")
     private static let refreshAfter: TimeInterval = 600
     private static let ghPaths = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", NSHomeDirectory() + "/.local/bin/gh"]

@@ -42,7 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.config = moved
             self?.store.save(moved)
         }
-        bar.show()
+        let firstRun = store.createdNew
+        if !firstRun { bar.show() } // first run: the bar appears once a theme is picked
 
         buildStatusItem(hotkeyDisplay: hotkey.display)
         hotkeys.onPress = { [weak self] in self?.bar.toggle() }
@@ -53,10 +54,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.bar.showMessage(title, body, action: isUpdate ? { self?.updateNow() } : nil)
         }
 
-        if store.createdNew {
-            bar.showMessage("Slate is running · press \(hotkey.display)",
-                            "Commands run in your home folder. Click here to choose a different one.",
-                            action: { [weak self] in self?.chooseDefaultFolder() })
+        if firstRun {
+            // Welcome: pick a look first, then the bar appears in it.
+            ThemePicker.show(config: config, hotkeyDisplay: hotkey.display, welcome: true) { [weak self] theme in
+                guard let self else { return }
+                if let theme { self.useTheme(theme) }
+                self.bar.show()
+                self.bar.showMessage("Slate is running · press \(hotkey.display)",
+                                     "Commands run in your home folder. Click here to choose a different one.",
+                                     action: { [weak self] in self?.chooseDefaultFolder() })
+            }
         }
         checkDefaultFolder()
         ensureLoginItem()
@@ -169,6 +176,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func rebuildThemesMenu() {
         themesMenu.removeAllItems()
+        let gallery = themesMenu.addItem(withTitle: "Theme Gallery…", action: #selector(menuThemeGallery), keyEquivalent: "")
+        gallery.target = self
+        themesMenu.addItem(.separator())
         if Themes.all.isEmpty {
             let soon = themesMenu.addItem(withTitle: "More themes coming soon", action: nil, keyEquivalent: "")
             soon.isEnabled = false
@@ -184,7 +194,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func menuTheme(_ sender: NSMenuItem) {
         guard Themes.all.indices.contains(sender.tag) else { return }
-        let theme = Themes.all[sender.tag]
+        useTheme(Themes.all[sender.tag])
+    }
+
+    @objc private func menuThemeGallery() { openThemeGallery() }
+
+    private func openThemeGallery() {
+        ThemePicker.show(config: config, hotkeyDisplay: (try? Hotkey.parse(config.hotkey))?.display ?? "", welcome: false) { [weak self] theme in
+            if let theme { self?.useTheme(theme) }
+        }
+    }
+
+    private func useTheme(_ theme: Theme) {
         theme.apply(&config.appearance)
         config.theme = theme.name
         store.save(config)
@@ -319,6 +340,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             changeDirectory(rawArg) // paths are case-sensitive
             return
         }
+        if cmd == "themes" || cmd == "theme" {
+            openThemeGallery()
+            return
+        }
         if cmd == "learn", arg == "on" || arg == "off" {
             setLearn(arg == "on")
             return
@@ -333,7 +358,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case ("history", "clear"): history.clear(); notifier.post("Slate", "History cleared.")
         case ("autostart", "on"): setLoginItem(true)
         case ("autostart", "off"): setLoginItem(false)
-        case ("help", _): notifier.post("Slate commands", ":cd <folder>  :learn on|off  :config :reload  :update  :version  :autostart on|off  :history clear  :exit")
+        case ("help", _): notifier.post("Slate commands", ":cd <folder>  :themes  :learn on|off  :config :reload  :update  :version  :autostart on|off  :history clear  :exit")
         default: notifier.post("Slate", "Unknown command \"\(text)\". Try :help")
         }
     }

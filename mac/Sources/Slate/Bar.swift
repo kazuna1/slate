@@ -16,8 +16,9 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     let view = BarView()
     private(set) var config: SlateConfig
     private let history: History
-    private let projects = Projects()
-    private let github = GitHubRepos()
+    // Shared by every Bar (the real one and theme previews): one folder index, one repo list.
+    private let projects = Projects.shared
+    private let github = GitHubRepos.shared
     private lazy var completer = Completer(projects: projects)
 
     var onBuiltin: ((String) -> Void)?
@@ -819,6 +820,15 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     /// Renders the bar, as it looks when summoned, to a PNG on a dark backdrop.
     /// Slate --render-preview out.png "text"
     func renderPreview(to path: String, text: String) throws {
+        guard let image = try? renderImage(text: text),
+              let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
+            throw SlateError("Couldn't render the preview.")
+        }
+        try data.write(to: URL(fileURLWithPath: path))
+    }
+
+    /// The bar as an image (2x), as it looks when summoned, on a dark backdrop. Used by the theme gallery.
+    func renderImage(text: String) throws -> CGImage {
         view.glow.removeAllAnimations()
         view.sheen.removeAllAnimations()
         view.glow.opacity = 1
@@ -847,11 +857,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         ctx.fill(CGRect(origin: .zero, size: size))
         view.layer?.render(in: ctx)
         panel.orderOut(nil)
-
-        guard let image = ctx.makeImage(),
-              let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
-            throw SlateError("Couldn't encode the PNG.")
-        }
-        try data.write(to: URL(fileURLWithPath: path))
+        guard let image = ctx.makeImage() else { throw SlateError("Couldn't render the bar.") }
+        return image
     }
 }

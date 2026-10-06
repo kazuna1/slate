@@ -30,6 +30,10 @@ internal sealed class GitHubRepos
     private Cache _cache;
     private int _fetching;
 
+    /// <summary>One repo list for the whole app.</summary>
+    public static GitHubRepos Shared => SharedInstance.Value;
+    private static readonly Lazy<GitHubRepos> SharedInstance = new(() => new GitHubRepos());
+
     public GitHubRepos()
     {
         try

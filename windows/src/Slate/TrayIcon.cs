@@ -13,7 +13,8 @@ internal sealed class TrayIcon : IDisposable
 
     /// <param name="update">Checks for an update, or installs it if one was already found.</param>
     public TrayIcon(Action summon, Action openConfig, Action reload, Action update, Action exit,
-        Func<string> currentTheme, Action<SlateTheme> applyTheme, Func<string> defaultFolder, Action chooseFolder, Action<bool> setLearn)
+        Func<string> currentTheme, Action<SlateTheme> applyTheme, Func<string> defaultFolder, Action chooseFolder, Action<bool> setLearn,
+        Action openGallery)
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Summon bar", null, (_, _) => summon());
@@ -22,7 +23,7 @@ internal sealed class TrayIcon : IDisposable
 
         var themes = new ToolStripMenuItem("Themes");
         themes.DropDownItems.Add(new ToolStripMenuItem("More themes coming soon") { Enabled = false });
-        themes.DropDownOpening += (_, _) => RebuildThemes(themes, currentTheme(), applyTheme);
+        themes.DropDownOpening += (_, _) => RebuildThemes(themes, currentTheme(), applyTheme, openGallery);
         menu.Items.Add(themes);
 
         var folder = new ToolStripMenuItem("Default folder…");
@@ -78,9 +79,11 @@ internal sealed class TrayIcon : IDisposable
         _icon.ShowBalloonTip(5000, title, text, ToolTipIcon.Info);
     }
 
-    private static void RebuildThemes(ToolStripMenuItem parent, string current, Action<SlateTheme> applyTheme)
+    private static void RebuildThemes(ToolStripMenuItem parent, string current, Action<SlateTheme> applyTheme, Action openGallery)
     {
         parent.DropDownItems.Clear();
+        parent.DropDownItems.Add("Theme gallery…", null, (_, _) => openGallery());
+        parent.DropDownItems.Add(new ToolStripSeparator());
         if (Themes.All.Count == 0)
         {
             parent.DropDownItems.Add(new ToolStripMenuItem("More themes coming soon") { Enabled = false });

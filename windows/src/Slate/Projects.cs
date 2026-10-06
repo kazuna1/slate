@@ -55,6 +55,10 @@ internal sealed class Projects
         public Dictionary<string, int>? Used { get; set; }
     }
 
+    /// <summary>One index for the whole app (theme previews create extra bars; each would start its own watchers).</summary>
+    public static Projects Shared => SharedInstance.Value;
+    private static readonly Lazy<Projects> SharedInstance = new(() => new Projects());
+
     public Projects()
     {
         _index = Load();

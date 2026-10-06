@@ -75,12 +75,13 @@ public partial class App : Application
             Notify = Notify,
             SaveConfig = c => _store.Save(c),
         };
-        _bar.Show();
+        bool firstRun = _store.CreatedNew;
+        if (!firstRun) _bar.Show(); // first run: the bar appears once a theme is picked
 
         _tray = new TrayIcon(() => _bar.Summon(), OpenConfig, Reload, () => _ = UpdateNowAsync(), Quit,
             () => _config.Theme, ApplyTheme,
             () => CommandRunner.Abbreviate(CommandRunner.ResolveWorkingDirectory(_config.WorkingDirectory)), ChooseDefaultFolder,
-            SetLearn);
+            SetLearn, OpenThemeGallery);
 
         try
         {
@@ -95,9 +96,17 @@ public partial class App : Application
 
         _store.Changed += () => Dispatcher.BeginInvoke(Reload);
 
-        if (_store.CreatedNew)
-            Notify("Slate is running", $"Press {hotkey.Display} anywhere. Commands run in your home folder: click here to choose a different one.",
-                ChooseDefaultFolder);
+        if (firstRun)
+        {
+            // Welcome: pick a look first, then the bar appears in it.
+            ThemePicker.ShowGallery(_config, hotkey.Display, welcome: true, theme =>
+            {
+                if (theme != null) ApplyTheme(theme);
+                _bar.Show();
+                Notify("Slate is running", $"Press {hotkey.Display} anywhere. Commands run in your home folder: click here to choose a different one.",
+                    ChooseDefaultFolder);
+            });
+        }
         CheckDefaultFolder();
         if (configError != null) Notify("Slate: config.json has an error", configError + "\nUsing defaults.");
         if (hotkeyError != null) Notify("Slate: bad hotkey", hotkeyError);
@@ -214,6 +223,12 @@ public partial class App : Application
         }
     }
 
+    private void OpenThemeGallery() =>
+        ThemePicker.ShowGallery(_config, ParseHotkey(_config.Hotkey, out _).Display, welcome: false, theme =>
+        {
+            if (theme != null) ApplyTheme(theme);
+        });
+
     private void ApplyTheme(SlateTheme theme)
     {
         theme.Apply(_config.Appearance);
@@ -274,6 +289,9 @@ public partial class App : Application
             case "update":
                 _ = UpdateNowAsync();
                 return;
+            case "themes" or "theme":
+                OpenThemeGallery();
+                return;
             case "cd":
                 ChangeDirectory(rawArg);
                 return;
@@ -284,7 +302,7 @@ public partial class App : Application
                 Notify("Slate", $"Version {Updater.CurrentVersion.ToString(3)}");
                 return;
             case "help":
-                Notify("Slate commands", ":cd <folder>  :learn on|off  :config :reload  :update  :version  :autostart on|off  :history clear  :exit");
+                Notify("Slate commands", ":cd <folder>  :themes  :learn on|off  :config :reload  :update  :version  :autostart on|off  :history clear  :exit");
                 return;
             default:
                 Notify("Slate", $"Unknown command \"{text}\". Try :help");
