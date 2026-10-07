@@ -70,12 +70,22 @@ final class Projects {
 
     // MARK: Scanning
 
+    /// Marks the index stale so the next refresh rescans.
+    func rescanSoon() {
+        lock.lock()
+        index.scannedAt = .distantPast
+        lock.unlock()
+        refreshIfStale()
+    }
+
     /// Kicks off a background rescan if the cached one is stale.
     func refreshIfStale() {
         ingestTerminalVisits()
         lock.lock()
         defer { lock.unlock() }
-        guard !scanning, Date().timeIntervalSince(index.scannedAt) > Self.rescanAfter else { return }
+        // Rescan early when a repo it knows has moved or been deleted (e.g. ~/projects/slate → ~/dev/slate).
+        let moved = index.repos.contains { !Self.isDirectory($0) }
+        guard !scanning, moved || Date().timeIntervalSince(index.scannedAt) > Self.rescanAfter else { return }
         scanning = true
         DispatchQueue.global(qos: .utility).async {
             var repos: [String] = []

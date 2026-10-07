@@ -28,7 +28,7 @@ struct SlateConfig: Codable {
     var projectCommand = "claude -c"
     var useZoxide = true
     /// Tab completion also offers every subfolder of these.
-    var projectRoots = ["~/projects", "~/Developer", "~/code"]
+    var projectRoots = ["~/projects", "~/dev", "~/Developer", "~/code"]
     var appearance = Appearance()
     var animations = Animations()
 

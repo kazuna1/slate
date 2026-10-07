@@ -413,7 +413,7 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         var folder: String?
 
         // Just a project name ("slate", "slate -c"): run projectCommand (claude) inside it.
-        if let launch = projectLaunch(text) {
+        if let launch = projectLaunch(text, deep: true) {
             folder = launch.folder
             projects.visited(launch.folder, config: config)
             command = ProjectCommand.build(config.projectCommand, folder: launch.folder, args: launch.args)
@@ -619,7 +619,9 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
     /// "slate" or "slate -c": the project's folder and the options, if the first word is exactly a known
     /// project name and isn't a shortcut or a real command. Everything after it must be options.
-    private func projectLaunch(_ text: String) -> (folder: String, args: String)? {
+    /// `deep` (on Return, not while typing): if the name isn't a known project yet, e.g. a repo that was just
+    /// moved or cloned, also accept a git repo with exactly that name from the full folder search.
+    private func projectLaunch(_ text: String, deep: Bool = false) -> (folder: String, args: String)? {
         guard !config.projectCommand.trimmingCharacters(in: .whitespaces).isEmpty,
               let first = text.first, first != ":", first != "@" else { return nil }
         let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
@@ -627,9 +629,19 @@ final class Bar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         let rest = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
         guard rest.isEmpty || rest.hasPrefix("-"),
               config.shortcuts[name] == nil, !Commands.isCommand(name),
-              let folder = completer.exactFolder(name) else { return nil }
+              let folder = completer.exactFolder(name) ?? (deep ? newRepo(named: name) : nil) else { return nil }
         var isDir: ObjCBool = false
         return FileManager.default.fileExists(atPath: folder, isDirectory: &isDir) && isDir.boolValue ? (folder, rest) : nil
+    }
+
+    /// A git repository named exactly `name` that isn't in the known list yet (found via the index or Spotlight).
+    /// Only repos qualify, so a random folder can't take over a word meant as a command.
+    private func newRepo(named name: String) -> String? {
+        guard let found = projects.resolve(name, config: config),
+              (found as NSString).lastPathComponent.lowercased() == name.lowercased(),
+              FileManager.default.fileExists(atPath: (found as NSString).appendingPathComponent(".git")) else { return nil }
+        projects.rescanSoon() // the known list is out of date
+        return found
     }
 
     // MARK: Config → visuals
